@@ -1,21 +1,29 @@
 const http = require('http');
+const https = require('https');
 const fs = require('fs');
 const path = require('path');
 
 const mimeTypes = {
     '.html': 'text/html',
     '.css': 'text/css',
-    '.js': 'text/javascript'
+    '.js': 'text/javascript',
+    '.json': 'application/json',
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.gif': 'image/gif',
 };
 
-const myserver = http.createServer(function (req, res) {
+// Get the directory where the script is located
+const currentDir = __dirname;
+
+const handleRequest = function (req, res) {
     console.log(`Request received for: ${req.url}`);
 
-    // Normalize the file path
-    let filePath = path.join(__dirname, 'website', req.url === '/' ? 'index.html' : req.url);
+    // Normalize the file path, using the current directory as the base
+    let filePath = path.join(currentDir, req.url === '/' ? 'index.html' : req.url);
     
     // Ensure we're not allowing directory traversal
-    if (!filePath.startsWith(path.join(__dirname, 'website'))) {
+    if (!filePath.startsWith(currentDir)) {
         res.writeHead(403);
         res.end('Forbidden');
         return;
@@ -41,7 +49,14 @@ const myserver = http.createServer(function (req, res) {
             res.end(content, 'utf-8');
         }
     });
-});
+};
 
-myserver.listen(80);
-console.log('Server running on port 80');
+// Create an HTTP server
+const httpServer = http.createServer(handleRequest);
+
+// Start the server
+const port = 80; // You can change this to a higher number if you don't have root privileges
+httpServer.listen(port, () => {
+    console.log(`HTTP Server running on port ${port}`);
+    console.log(`Serving files from: ${currentDir}`);
+});
