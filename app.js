@@ -2,27 +2,20 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-const hostname = '127.0.0.1';
-const port = 3000;
-
 const mimeTypes = {
     '.html': 'text/html',
     '.css': 'text/css',
-    '.js': 'text/javascript',
-    '.json': 'application/json',
-    '.png': 'image/png',
-    '.jpg': 'image/jpeg',
-    '.gif': 'image/gif',
+    '.js': 'text/javascript'
 };
 
-const server = http.createServer((req, res) => {
+const myserver = http.createServer(function (req, res) {
     console.log(`Request received for: ${req.url}`);
 
     // Normalize the file path
-    let filePath = path.join(__dirname, 'Website', req.url === '/' ? 'index.html' : req.url);
+    let filePath = path.join(__dirname, 'website', req.url === '/' ? 'index.html' : req.url);
     
     // Ensure we're not allowing directory traversal
-    if (!filePath.startsWith(path.join(__dirname, 'Website'))) {
+    if (!filePath.startsWith(path.join(__dirname, 'website'))) {
         res.writeHead(403);
         res.end('Forbidden');
         return;
@@ -50,7 +43,5 @@ const server = http.createServer((req, res) => {
     });
 });
 
-server.listen(port, hostname, () => {
-    console.log(`Server running at http://${hostname}:${port}/`);
-    console.log(`Serving files from: ${path.join(__dirname, 'Website')}`);
-});
+myserver.listen(80);
+console.log('Server running on port 80');
