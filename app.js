@@ -35,8 +35,8 @@ const handleRequest = function (req, res) {
     fs.readFile(filePath, (error, content) => {
         if (error) {
             if (error.code === 'ENOENT') {
-                console.log(`File not found: ${filePath}`);
-                res.writeHead(404);
+                console.log(`File not found: ${req.url}`);
+		res.writeHead(404);
                 res.end('File Not Found');
             } else {
                 console.log(`Server error: ${error.code}`);
@@ -44,7 +44,6 @@ const handleRequest = function (req, res) {
                 res.end(`Server Error: ${error.code}`);
             }
         } else {
-            console.log(`Serving file: ${filePath}`);
             res.writeHead(200, { 'Content-Type': contentType });
             res.end(content, 'utf-8');
         }
@@ -58,5 +57,5 @@ const httpServer = http.createServer(handleRequest);
 const port = 80; // You can change this to a higher number if you don't have root privileges
 httpServer.listen(port, () => {
     console.log(`HTTP Server running on port ${port}`);
-    console.log(`Serving files from: ${currentDir}`);
+    console.log(`Serving files from: __dirname`);
 });
