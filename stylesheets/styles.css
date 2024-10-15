@@ -44,5 +44,8 @@ a:hover {
 }
 
 footer{
+    padding: 15px;
     align-content: baseline;
+    background: navy;
+    color: white;
 }
