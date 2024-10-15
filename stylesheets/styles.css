@@ -1,6 +1,9 @@
 body {
-    background-color: white;
+    display: flex;
+    flex-direction: column;
+    background-color: lightgray;
     margin: 0px;
+    min-height:100vh;
 }
 
 
@@ -14,13 +17,14 @@ li {
 }
 
 .header {
-    padding: 25px;
+    padding: 5px;
     text-align: left;
-    background: blue;
+    background: navy;
     color: white;
 }
 
 .body{
+    flex: 1;
     padding-left: 20px;
     padding-right: 20px;
 }
@@ -31,9 +35,14 @@ li {
     font-size: 20px;
 }
 
-a:hover {
-    color:gray;
+
+a{
+    color:white;
 }
-a:visited{
+a:hover {
     color:black;
+}
+
+footer{
+    align-content: baseline;
 }
