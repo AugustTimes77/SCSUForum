@@ -4,29 +4,51 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SCSU Student Forum</title>
-    <link rel="stylesheet" href="/stylesheets/styles.css">
+    <link rel="stylesheet" href="stylesheets/styles.css">
 </head>
 <body>
-    <div class="header">
-        <nav>
-            <ul>
-                <li><p id="main">SCSU Student Forum</p></li>
-                <li><a href="#">Forums</a></li>
-                <li><a href="#">Messages</a></li>
-                <li><a href="#">Account</a></li>
+    <header class="header">
+        <div class="container">
+            <h1>SCSU Student Forum</h1>
+            <nav>
+                <ul>
+                    <li><a href="#">Forums</a></li>
+                    <li><a href="#">Messages</a></li>
+                    <li><a href="#">Account</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <main class="body">
+        <section class="forum-section">
+            <h2>Popular Forums</h2>
+            <ul class="forum-list">
+                <li>
+                    <a href="#">General Discussion</a>
+                    <p class="forum-description">Chat about anything related to SCSU</p>
+                </li>
+                <li>
+                    <a href="#">Academic Support</a>
+                    <p class="forum-description">Get help with your studies</p>
+                </li>
+                <li>
+                    <a href="#">Campus Events</a>
+                    <p class="forum-description">Discover and discuss upcoming events</p>
+                </li>
             </ul>
-        </nav>
-    </div>
+        </section>
 
-    <div class="body">
-        <p>By: ....</p>
-    </div>
-
+        <section class="forum-section">
+            <h2>Recent Discussions</h2>
+            <div class="discussion">
+                </div>
+            </div>
+        </section>
+    </main>
 
     <footer>
-        <p>By: Henry, Tony, Fabrice, Jenna</p>
+        <p>&copy; 2024 SCSU Student Forum. Created by Henry, Tony, Fabrice, Jenna</p>
     </footer>
-
-    <script src="/js/script.js"></script>
 </body>
 </html>

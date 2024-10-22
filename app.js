@@ -19,6 +19,8 @@ const currentDir = __dirname;
 const handleRequest = function (req, res) {
     console.log(`Request received for: ${req.url}`);
 
+    // let ffileName = '.' + url.parse(req.url).pathname;
+
     // Normalize the file path, using the current directory as the base
     let filePath = path.join(currentDir, req.url === '/' ? 'index.html' : req.url);
     
