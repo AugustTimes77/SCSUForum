@@ -9,6 +9,14 @@ body {
 }
 
 /* Header styles */
+.home-link {
+    color: white;
+    text-decoration: none;
+}
+
+.home-link:hover {
+    text-decoration: underline;
+}
 .header {
     background-color: #184bbb;
     color: white;
