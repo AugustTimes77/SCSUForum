@@ -1,0 +1,35 @@
+<!-- template.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Your Site</title>
+    <!-- Add your CSS here -->
+</head>
+<body>
+    <!-- Header Container -->
+    <div id="header-container"></div>
+
+    <!-- Main Content Area -->
+    <main class="body">
+        {{content}}
+    </main>
+
+    <!-- Footer Container -->
+    <div id="footer-container"></div>
+
+    <!-- Scripts -->
+    <script src="/script.js"></script>
+    <script>
+        // Ensure partials load on direct page access
+        document.addEventListener('DOMContentLoaded', () => {
+            loadPartials().then(() => {
+                setupNavigation();
+            }).catch(error => {
+                console.error('Failed to load partials:', error);
+            });
+        });
+    </script>
+</body>
+</html>
