@@ -15,11 +15,11 @@ async function fetchBooks() {
 
         const books = await response.json();
 
-        const contentDiv = document.querySlector('forum-section');
+        const contentDiv = document.querySelector('forum-section');
         contentDiv.innerHTML = '<h2>Books</h2><ul>';
 
         books.forEach(book => {
-            contentDiv.innerHTML += `<li>${JSON.stringify(book.title)}</li>`;
+            contentDiv.innerHTML += `<li>${JSON.stringify(book)}</li>`;
         });
         contentDiv.innerHTML += '</ul>';
 
