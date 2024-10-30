@@ -19,7 +19,7 @@ body {
     text-decoration: underline;
 }
 .header {
-    background-color: #184bbb;
+    background-color: #003399;
     color: white;
     padding: 1rem;
 }
@@ -178,7 +178,7 @@ body {
 
 /* Footer styles */
 footer {
-    background-color: #1e40af;
+    background-color: #003399;
     color: white;
     text-align: center;
     padding: 1rem;

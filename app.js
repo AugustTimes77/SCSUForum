@@ -2,6 +2,16 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const mysql = require('mysql2');
+
+//Create  a connection pool with mySQL server redentials and dataabase name
+const connection_pool = mysql.createPool({
+  host     : '34.136.239.4',
+  user     : 'group2',
+  password : 'group2',
+  database : 'testInstallation',
+  connectionLimit : 10
+});
 
 // dictionary of all of the different types of files that we could send
 const mimeTypes = {
@@ -16,12 +26,13 @@ const mimeTypes = {
 
 const currentDir = __dirname;
 
+
 // function to read partials
 // partial in this case is refering to the header and footer, so for each page
 // we don't need to load in the header and footer for each new page
 // partialName is either header.html, or footer.html
 function readPartial(partialName) {
-    // promis is an async call, just saying hey this will come later
+    // promise is an async call, just saying hey this will come later
     return new Promise((resolve, reject) => {
         // gets the path of the partial and gets the data
         const partialPath = path.join(currentDir, 'includes', 'partials', `${partialName}.html`);
@@ -34,6 +45,10 @@ function readPartial(partialName) {
         });
     });
 }
+
+
+// SERVER DATABASE REQUEST FUNCTION
+
 
 // function to read page content
 // it recieves the page (forums, account, messages) name the user is looking for
@@ -93,6 +108,28 @@ const handleRequest = async function (req, res) {
             res.end('Partial not found');
         }
         return; //end request
+    }
+
+
+     // Add this near the beginning of your existing handleRequest function
+     if (req.url === '/api/books' && req.method === 'GET') {
+        try {
+            // Execute query
+            const [rows] = await pool.query('SELECT * FROM books');
+            
+            // Send response
+            res.writeHead(200, { 
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            });
+            res.end(JSON.stringify(rows));
+            return;
+        } catch (error) {
+            console.error('Database error:', error);
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Database error' }));
+            return;
+        }
     }
 
     // handles the static files such as stylesheets and javascript flies
@@ -155,6 +192,10 @@ const handleRequest = async function (req, res) {
         }
     }
 };
+
+
+
+
 
 // create an HTTP server
 const httpServer = http.createServer(handleRequest);
