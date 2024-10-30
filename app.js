@@ -115,7 +115,7 @@ const handleRequest = async function (req, res) {
      if (req.url === '/api/books' && req.method === 'GET') {
         try {
             // Execute query
-            const [rows] = await pool.query('SELECT * FROM books');
+            const [rows] = await connection_pool.query('SELECT * FROM books');
             
             // Send response
             res.writeHead(200, { 
