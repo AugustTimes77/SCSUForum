@@ -112,10 +112,10 @@ const handleRequest = async function (req, res) {
 
 
      // Add this near the beginning of your existing handleRequest function
-     if (req.url === '/api/books' && req.method === 'GET') {
+    if (req.url === '/api/books' && req.method === 'GET') {
         try {
-            // Execute query
-            const [rows] = await connection_pool.query('SELECT * FROM books');
+            // Modified to use connection_pool and proper promise syntax
+            const [rows] = await connection_pool.promise().query('SELECT * FROM books');
             
             // Send response
             res.writeHead(200, { 
