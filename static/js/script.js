@@ -20,6 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
     //load header/footer then set up navigation once finished
     loadPartials().then(() => {
         setupNavigation();
+        reattachEventListeners();
     });
 });
 
@@ -96,6 +97,24 @@ function setupNavigation() {
     }
 }
 
+// reattach event listeners in order to buttons
+// Add this new function to handle reattaching event listeners
+function reattachEventListeners() {
+    // Reattach database display button listener
+    const displayButton = document.getElementById('displaydata');
+    if (displayButton) {
+        console.log('Reattaching display button listener');
+        // Remove any existing listeners first to prevent duplicates
+        displayButton.replaceWith(displayButton.cloneNode(true));
+        // Get the fresh reference after replacing
+        const freshButton = document.getElementById('displaydata');
+        freshButton.addEventListener('click', fetchBooks);
+    }
+
+    // Add any other event listeners that need to be reattached here
+}
+
+
 // function for loading main content, the stuff between header and footer
 function loadContent(pageName) {
     // new AJAX request
@@ -119,6 +138,10 @@ function loadContent(pageName) {
             // replace the current content with the queried content
             mainContent.innerHTML = newContent.innerHTML;
             
+
+            reattachEventListeners();
+
+
             // update the url without refresh
             const url = pageName === 'home' ? '/' : `/${pageName}`;
             // adds the page to browser history

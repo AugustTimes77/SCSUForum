@@ -66,6 +66,16 @@ body {
     
 }
 
+/* General  section */
+.general-section {
+    background-color: white;
+    border-radius: 0.5rem;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    align-content: center;
+}
+
 /* Forum section styles */
 .forum-section {
     background-color: white;
