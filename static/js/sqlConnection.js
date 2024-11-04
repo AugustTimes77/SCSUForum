@@ -76,7 +76,7 @@ async function fetchUsers() {
             throw new Error('Could not find forum-section element');
         }
 
-        // More structured display of the users
+        // More structured display of the books
         contentDiv.innerHTML = '<h2>Users</h2><ul>';
         
         if (users.length === 0) {
@@ -117,6 +117,7 @@ document.addEventListener('DOMContentLoaded', () => {
         displayButton.addEventListener('click', () => {
             console.log('Button clicked');
             fetchUsers();
+            displayButton.innerText = "buttonclicked";
         });
     } else {
         console.log('Display button not found');

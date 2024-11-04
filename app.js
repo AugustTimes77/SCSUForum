@@ -114,6 +114,7 @@ const handleRequest = async function (req, res) {
 
      // Add this near the beginning of your existing handleRequest function
     if (req.url === '/api/users' && req.method === 'GET') {
+        console.log("sending api request");
         try {
             // Modified to use connection_pool and proper promise syntax
             const [rows] = await connection_pool.promise().query('SELECT * FROM users');
