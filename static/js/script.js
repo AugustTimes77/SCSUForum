@@ -149,3 +149,82 @@ window.addEventListener('popstate', (event) => {
         loadContent('home');
     }
 });
+
+
+
+
+
+
+// TONY AREA OF JS CODE -- Remember to add to Linux VM
+// REMINDER FOR ME::
+//
+// Remember to hard-code in button, make sure Sections have ID's,
+// correct filelocations are being sourced (script.js, styles.css),
+// and do any further debugging.
+//
+function startNewPost()
+{
+	
+	// Primary logic
+	
+	// Create our little post area
+	// REMINDER FOR THIS!!! : We need an id to be able to attach this function to the correct section / Post container
+	// In our case it's "forumSection" , which I hardcoded locally for testing.
+	document.getElementById("writePostHere").innerHTML += '<input size="50" class="post" id="postArea" type="text" value="Start writing new post...">';
+	
+	// Hide our post button
+	document.getElementById("Creatinate").style.visibility = "hidden";		// Set to "visible" later to re-show
+	
+	
+	// Create our "Cancel Post" and "Post" buttons, with unique ID's for deletion
+	document.getElementById("writePostHere").innerHTML += '<button class="createPost" id="postText" onclick="postUserText()">Post</button><button class="cancelPost" id="cancelButton" onclick="reShowCreatePostButton()">Cancel Post</button>';
+	
+}
+
+// This function pastes the user's post into the space below
+// and also deletes these buttons/post area , while 
+// re-showing the "Create Post" button
+function postUserText()
+{
+	
+	console.log("postUserText called.");
+	
+	
+	// Hide (delete) our buttons
+	document.getElementById("cancelButton").remove();
+	document.getElementById("postText").remove();
+	
+	// Paste our user-inputted text below
+	let txt = document.getElementById("postArea").value;
+	console.log(txt);
+	document.getElementById("forumSection").innerHTML += txt + "<br>";  // Injecting user's string
+	
+	// Delete the posting area
+	document.getElementById("postArea").remove();
+	
+	
+	// Re-show "Create Post" button (Done after posting to but txt beneath "Create Post" button).
+	document.getElementById("Creatinate").style.visibility = "visible";
+	
+}
+
+
+
+// Function CALLED, WHEN Cancel Post button is hit.
+// 
+// This function will show our Create Post button again, while deleting (removing) our input text bot and cancel button.
+// They can easily be brought back with a startNewPost() function call again.
+function reShowCreatePostButton()
+{
+	
+	console.log("reShowCreatePostButton called.");
+	
+	// Re-show Post button
+	document.getElementById("Creatinate").style.visibility = "visible";
+	
+	// Delete Post box, "Cancel Post" button, and "Post" button by ID
+	document.getElementById("postArea").remove();
+	document.getElementById("cancelButton").remove();
+	document.getElementById("postText").remove();
+	
+}

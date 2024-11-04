@@ -184,3 +184,27 @@ footer {
     padding: 1rem;
     margin-top: 2rem;
 }
+
+
+
+/* TONY AREA FOR STYLESHEETS */
+input.post {			/* For post labels */
+
+    background-color: #FFFFE0;
+
+}
+
+button.createPost {		/* For creating small, grey buttons */
+
+    background-color: #424549;
+    border-radius: 4px;
+    color: #FFFFFF;
+
+}
+
+button.cancelPost {  		/* For our Cancel button */
+
+	background-color: #424549;
+	color: #FFFFFF;
+
+}

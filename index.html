@@ -10,8 +10,15 @@
     <div id="header-container"></div>
 
     <div class="body">
-        <section  class="forum-section">
+        <section  class="forum-section" id="forumSection"> <!-- Note the id! Necessary! -->
             <h1>Home Page</h1>
+
+
+	    <!-- This ordering is important for posting so that the posting box is above the posted-posts area -->
+	    <div id="writePostHere"></div>		<!-- This is where you write your posts. (Don't paste posts in here!) -->
+	    <button class="createPost" id="Creatinate" onclick="startNewPost()">Create a Post</button><br> 				<!-- TEMP INJECTION AREA -->
+	
+
         </section>
         
         <section class="forum-section">
