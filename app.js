@@ -9,7 +9,7 @@ const connection_pool = mysql.createPool({
   host     : '34.136.239.4',
   user     : 'group2',
   password : 'group2',
-  database : 'testInstallation',
+  database : 'scsuforum',
   connectionLimit : 10
 });
 
@@ -88,6 +88,7 @@ function getTemplateHTML() {
 </html>`;
 }
 
+
 // anytime the client requests data it comes through this
 const handleRequest = async function (req, res) {
     console.log(`Request received for: ${req.url}`);
@@ -112,10 +113,10 @@ const handleRequest = async function (req, res) {
 
 
      // Add this near the beginning of your existing handleRequest function
-    if (req.url === '/api/books' && req.method === 'GET') {
+    if (req.url === '/api/users' && req.method === 'GET') {
         try {
             // Modified to use connection_pool and proper promise syntax
-            const [rows] = await connection_pool.promise().query('SELECT * FROM book');
+            const [rows] = await connection_pool.promise().query('SELECT * FROM users');
             
             // Send response
             res.writeHead(200, { 
