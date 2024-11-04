@@ -112,6 +112,47 @@ const handleRequest = async function (req, res) {
         return; //end request
     }
 
+    if (req.url === '/api/users/create' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => {
+            body += chunk.toString();
+        });
+        
+        req.on('end', async () => {
+            try {
+                const userData = JSON.parse(body);
+                
+                // Insert the new user
+                const query = `
+                    INSERT INTO users (username, password_hash, email, role) 
+                    VALUES (?, ?, ?, ?)
+                `;
+                
+                const values = [
+                    userData.username,
+                    userData.password, // Note: In production, this should be hashed!
+                    userData.email,
+                    userData.role || 'owl'
+                ];
+    
+                const [result] = await connection_pool.promise().query(query, values);
+                
+                res.writeHead(200, { 
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                });
+                res.end(JSON.stringify({ 
+                    message: 'User created successfully',
+                    userId: result.insertId 
+                }));
+            } catch (error) {
+                console.error('Error creating user:', error);
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Error creating user' }));
+            }
+        });
+        return;
+    }
 
      // Add this near the beginning of your existing handleRequest function
     if (req.url === '/api/users' && req.method === 'GET') {

@@ -73,6 +73,78 @@ function setupDisplayButton() {
     }
 }
 
+
+// Add this to your sqlConnection.js
+
+async function createUser(userData) {
+    try {
+        const response = await fetch('/api/users/create', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(userData)
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const result = await response.json();
+        return result;
+    } catch (error) {
+        console.error('Error creating user:', error);
+        throw error;
+    }
+}
+
+function setupAccountForm() {
+    const form = document.getElementById('createAccountForm');
+    if (form) {
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            try {
+                const userData = {
+                    username: document.getElementById('username').value,
+                    password: document.getElementById('password').value,
+                    email: document.getElementById('email').value,
+                    role: 'owl' // default role
+                };
+
+                // Validate input
+                if (!userData.username || !userData.password || !userData.email) {
+                    throw new Error('Please fill in all fields');
+                }
+
+                // Basic email validation
+                if (!userData.email.includes('@')) {
+                    throw new Error('Please enter a valid email address');
+                }
+
+                await createUser(userData);
+                alert('Account created successfully!');
+                form.reset();
+                
+                // Optionally refresh the user list if it's displayed
+                const displayButton = document.getElementById('displaydata');
+                if (displayButton) {
+                    fetchUsers();
+                }
+
+            } catch (error) {
+                alert(`Error creating account: ${error.message}`);
+            }
+        });
+    }
+}
+
+// Add this to your existing DOMContentLoaded listener
+document.addEventListener('DOMContentLoaded', () => {
+    setupAccountForm();
+    setupDisplayButton();
+});
+
 // Add event listeners for both initial page load and dynamic content updates
 document.addEventListener('DOMContentLoaded', setupDisplayButton);
 

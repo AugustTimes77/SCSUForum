@@ -1,20 +1,27 @@
 <section class="account-section">
     <h2>Account Settings</h2>
     <h2>Please Create an account!</h2>
-    <div class="general-section">
-        <label>Username</label>
-        <input></input>
-        <br></br>
-        <label>Password</label>
-        <input></input>
-        <br></br>
-        <label>Email</label>
-        <input></input>
-        <br></br>
-        <label>Dance</label>
-        <input></input>
-        <br></br>
-        <button id="accountCreatorButton">Create Account</button>
-        <button id="displaydata">Display Users</button>
+    
+    <div class="account-form">
+        <form id="createAccountForm">
+            <div class="form-group">
+                <label for="username">Username:</label>
+                <input type="text" id="username" name="username" required>
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password:</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+
+            <div class="form-group">
+                <label for="email">Email:</label>
+                <input type="email" id="email" name="email" required>
+            </div>
+
+            <button type="submit" id="createAccount" class="submit-btn">Create Account</button>
+        </form>
+        
+        <button id="displaydata" class="display-btn">Display Users</button>
     </div>
 </section>
