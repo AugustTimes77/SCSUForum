@@ -115,47 +115,39 @@ function reattachEventListeners() {
 }
 
 
-// function for loading main content, the stuff between header and footer
+// In your loadContent function in script.js
 function loadContent(pageName) {
-    // new AJAX request
     const xhr = new XMLHttpRequest();
-    // get the stuff in class #body
     const mainContent = document.querySelector('.body');
-    // if we can't find it then return early
+    
     if (!mainContent) {
         console.error('No main content container found');
         return;
     }
 
-    // for when the content has loaded
     xhr.onload = function() {
         if (xhr.status === 200) {
-            // creates a temporary div to hold new stuff
             const tempDiv = document.createElement('div');
             tempDiv.innerHTML = xhr.responseText;
-            // extract the content we want in the html
             const newContent = tempDiv.querySelector('.body') || tempDiv;
-            // replace the current content with the queried content
             mainContent.innerHTML = newContent.innerHTML;
             
-
-            reattachEventListeners();
-
-
-            // update the url without refresh
+            // Reattach event listeners after content is loaded
+            if (typeof reattachEventListeners === 'function') {
+                reattachEventListeners();
+            }
+            
             const url = pageName === 'home' ? '/' : `/${pageName}`;
-            // adds the page to browser history
             history.pushState({page: pageName}, '', url);
         } else {
             console.error('Content loading failed:', xhr.status);
         }
     };
-    // for a network error
+
     xhr.onerror = function() {
         console.error('Request failed');
     };
     
-    // set up the reqeust URL to send
     const path = pageName === 'home' ? '/' : `/${pageName}`;
     xhr.open('GET', path, true);
     xhr.send();
