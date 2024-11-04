@@ -208,3 +208,13 @@ button.cancelPost {  		/* For our Cancel button */
 	color: #FFFFFF;
 
 }
+
+.post-section {                 /* For <section> elements used in posting */
+    background-color: #E6F3FD;
+    border-radius: 0.5rem;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+    align-content: center;
+    width: 50%;			/* temporary, keep if good */
+}

@@ -197,7 +197,7 @@ function postUserText()
 	// Paste our user-inputted text below
 	let txt = document.getElementById("postArea").value;
 	console.log(txt);
-	document.getElementById("forumSection").innerHTML += txt + "<br>";  // Injecting user's string
+	document.getElementById("forumSection").innerHTML += '<br><section class="post-section">-- User posted --<br>' + txt + "</section>";  // Injecting user's string
 	
 	// Delete the posting area
 	document.getElementById("postArea").remove();
