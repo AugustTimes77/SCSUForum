@@ -1,59 +1,3 @@
-// // async function to get book data
-// async function fetchBooks() {
-//     try {
-//         const response = await fetch('/api/books', {
-//             method: 'GET',
-//             headers: {
-//                 'Content-Type': 'application/json'
-//             }
-//         });
-
-//         if (!response.ok) {
-//             throw new Error(`HTTP error! status: ${response.status}`);
-//         }
-
-//         const books = await response.json();
-
-//         // gets the forum seciton
-//         const contentDiv = document.querySelector('.forum-section');
-        
-//         if (!contentDiv) {
-//             throw new Error('Could not find forum-section element');
-//         }
-
-//         // More structured display of the books
-//         contentDiv.innerHTML = '<h2>Books</h2><ul>';
-        
-//         if (books.length === 0) {
-//             contentDiv.innerHTML += '<li>No books found</li>';
-//         } else {
-//             books.forEach(book => {
-//                 // Format each book more cleanly instead of using JSON.stringify
-//                 contentDiv.innerHTML += `
-//                     <li>
-//                         <strong>Title:</strong> ${book.title || 'N/A'} | 
-//                         <strong>Author:</strong> ${book.author || 'N/A'}
-//                     </li>`;
-//             });
-//         }
-        
-//         contentDiv.innerHTML += '</ul>';
-
-//     } catch (error) {
-//         console.error('Error:', error.message);
-//         // Add visual error feedback
-//         const contentDiv = document.querySelector('.forum-section');
-//         if (contentDiv) {
-//             contentDiv.innerHTML = `
-//                 <div style="color: red; padding: 10px;">
-//                     Error loading books: ${error.message}
-//                 </div>`;
-//         }
-//     }
-// }
-
-
-// async function to get book data
 async function fetchUsers() {
     try {
         const response = await fetch('/api/users', {
@@ -68,28 +12,27 @@ async function fetchUsers() {
         }
 
         const users = await response.json();
-
-        // gets the forum seciton
+        
+        // gets the forum section
         const contentDiv = document.querySelector('.forum-section');
         
         if (!contentDiv) {
             throw new Error('Could not find forum-section element');
         }
 
-        // More structured display of the books
+        // More structured display of the users
         contentDiv.innerHTML = '<h2>Users</h2><ul>';
         
         if (users.length === 0) {
             contentDiv.innerHTML += '<li>No users found</li>';
         } else {
-            users.forEach(book => {
-                // Format each book more cleanly instead of using JSON.stringify
+            users.forEach(user => {  // Changed from 'book' to 'user'
                 contentDiv.innerHTML += `
                     <li>
-                        <strong>Title:</strong> ${users.user_id || 'N/A'} | 
-                        <strong>Author:</strong> ${users.username || 'N/A'} | 
-                        <strong>Author:</strong> ${users.email || 'N/A'} | 
-                        <strong>Author:</strong> ${users.role || 'N/A'}
+                        <strong>User ID:</strong> ${user.user_id || 'N/A'} | 
+                        <strong>Username:</strong> ${user.username || 'N/A'} | 
+                        <strong>Email:</strong> ${user.email || 'N/A'} | 
+                        <strong>Role:</strong> ${user.role || 'N/A'}
                     </li>`;
             });
         }
@@ -103,7 +46,7 @@ async function fetchUsers() {
         if (contentDiv) {
             contentDiv.innerHTML = `
                 <div style="color: red; padding: 10px;">
-                    Error loading books: ${error.message}
+                    Error loading users: ${error.message}
                 </div>`;
         }
     }

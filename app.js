@@ -84,6 +84,7 @@ function getTemplateHTML() {
     </div>
     <div id="footer-container"></div>
     <script src="static/js/script.js"></script>
+    <script src="static/js/sqlConnection.js"></script>
 </body>
 </html>`;
 }
