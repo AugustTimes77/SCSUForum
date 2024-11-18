@@ -1,0 +1,1161 @@
+.
+├── app.js
+├── config
+│   └── database.js
+├── controllers
+│   ├── handlers
+│   │   ├── deleteHandlers.js
+│   │   ├── getHandlers.js
+│   │   ├── index.js
+│   │   └── postHandlers.js
+│   └── requestController.js
+├── favicon.ico
+├── models
+│   ├── Forum.js
+│   ├── message.js
+│   └── User.js
+├── project_contents.txt
+├── public
+│   ├── css
+│   │   └── styles.css
+│   └── js
+│       ├── api.js
+│       └── main.js
+├── server.js
+├── services
+│   ├── authServices.js
+│   └── templateService.js
+├── utils
+│   ├── mimeTypes.js
+│   ├── pathHandler.js
+│   └── responseHandler.js
+└── views
+    ├── pages
+    │   ├── 404.html
+    │   ├── account.html
+    │   ├── forums.html
+    │   ├── index.html
+    │   └── messages.html
+    ├── partials
+    │   ├── footer.html
+    │   └── header.html
+    └── templates
+        └── forumTemplate.html
+
+14 directories, 29 files
+=== FILE CONTENTS ===
+
+=== ./app.js ===
+
+/**
+ * app.js
+ * Application setup and configuration. Exports the main request handler.
+ */
+
+const { handleRequest } = require('./controllers/requestController');
+
+// Error handling wrapper for all requests
+async function applicationHandler(req, res) {
+    try {
+        await handleRequest(req, res);
+    } catch (error) {
+        console.error('Unhandled error:', error);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Internal Server Error' }));
+    }
+}
+
+module.exports = applicationHandler;
+=== ./project_contents.txt ===
+
+
+=== ./config/database.js ===
+
+/**
+ * config/database.js
+ * Database configuration and connection pool setup.
+ */
+
+const mysql = require('mysql2');
+
+const dbConfig = {
+    host: 'localhost',
+    user: 'root',
+    database: 'scsuforum',
+    connectionLimit: 10
+};
+
+// Create the connection pool
+const pool = mysql.createPool(dbConfig);
+
+// Test the connection
+pool.getConnection((err, connection) => {
+    if (err) {
+        console.error('Database connection failed:', err);
+        return;
+    }
+    console.log('Database connected successfully');
+    connection.release();
+});
+
+// Export promisified pool for async/await usage
+module.exports = {
+    pool: pool.promise()
+};
+=== ./server.js ===
+
+/**
+ * server.js
+ * Main server entry point. Initializes HTTP server and starts listening for requests.
+ */
+
+const http = require('http');
+const app = require('./app');
+
+const port = process.env.PORT || 80;
+const server = http.createServer(app);
+
+server.listen(port, () => {
+    console.log(`Server running on port ${port}`);
+    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`Server time: ${new Date().toISOString()}`);
+});
+=== ./utils/mimeTypes.js ===
+
+// utils/mimeTypes.js - MIME type mapping
+
+const mimeTypes = {
+    '.html': 'text/html',
+    '.css': 'text/css',
+    '.js': 'text/javascript',
+    '.json': 'application/json',
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.gif': 'image/gif',
+};
+
+module.exports = mimeTypes;
+=== ./utils/pathHandler.js ===
+
+/**
+ * utils/pathHandler.js
+ * Handles path resolution and validation
+ */
+const path = require('path');
+
+const pathHandler = {
+    resolvePath(basePath, ...paths) {
+        const fullPath = path.join(basePath, ...paths);
+        // Security check to prevent directory traversal
+        if (!fullPath.startsWith(basePath)) {
+            throw new Error('Invalid path');
+        }
+        return fullPath;
+    },
+
+    getExtension(filepath) {
+        return path.extname(filepath).toLowerCase();
+    }
+};
+
+module.exports = pathHandler;
+=== ./utils/responseHandler.js ===
+
+/**
+ * utils/responseHelper.js
+ * Standardizes HTTP responses
+ */
+const responseHelper = {
+    sendJson(res, data, status = 200) {
+        res.writeHead(status, {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+        });
+        res.end(JSON.stringify(data));
+    },
+
+    sendError(res, error, status = 500) {
+        res.writeHead(status, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+            error: error.message || 'Internal Server Error',
+            status
+        }));
+    },
+
+    sendFile(res, content, contentType) {
+        res.writeHead(200, { 'Content-Type': contentType });
+        res.end(content);
+    }
+};
+
+module.exports = responseHelper;
+=== ./services/templateService.js ===
+
+/**
+ * services/templateService.js
+ * Handles HTML template loading and processing
+ */
+
+const fs = require('fs').promises;
+const path = require('path');
+
+class TemplateService {
+    constructor() {
+        this.viewsDir = path.join(__dirname, '../views');
+        this.partialsDir = path.join(this.viewsDir, 'partials');
+        this.pagesDir = path.join(this.viewsDir, 'pages');
+    }
+
+    async readPartial(partialName) {
+        return await fs.readFile(path.join(this.partialsDir, `${partialName}.html`), 'utf8');
+    }
+
+    async readPageContent(pageName) {
+        return await fs.readFile(path.join(this.pagesDir, `${pageName}.html`), 'utf8');
+    }
+
+    getTemplateHTML() {
+        return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SCSU Student Forum</title>
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <div id="header-container"></div>
+    <div class="body">
+        {{content}}
+    </div>
+    <div id="footer-container"></div>
+    <script src="/js/main.js"></script>
+    <script src="/js/api.js"></script>
+</body>
+</html>`;
+    }
+}
+
+module.exports = new TemplateService();
+=== ./services/authServices.js ===
+
+
+=== ./views/pages/account.html ===
+
+<section class="account-section">
+    <h2>Account Settings</h2>
+    <div class="account-form">
+        <form id="createAccountForm">
+            <div class="form-group">
+                <label for="username">Username:</label>
+                <input type="text" id="username" name="username" required>
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password:</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+
+            <div class="form-group">
+                <label for="email">Email:</label>
+                <input type="email" id="email" name="email" required>
+            </div>
+
+            <button type="submit" class="submit-btn">Create Account</button>
+        </form>
+        
+        <button id="displaydata" class="display-btn">Display Users</button>
+
+        <div class="forum-section">Hello there</div>
+    </div>
+</section>
+=== ./views/pages/forums.html ===
+
+<section class="forum-section">
+    <h2>Forums</h2>
+    <div class="forum-list">
+        <div class="forum-category">
+            <h3>Academic Discussions</h3>
+            <ul>
+                <li>
+                    <a href="#" class="forum-link">General Discussion</a>
+                    <p class="forum-description">Chat about anything related to SCSU</p>
+                </li>
+                <li>
+                    <a href="#" class="forum-title">Course Registration</a>
+                    <p class="forum-description">Discuss class registration and scheduling</p>
+                </li>
+                <li>
+                    <a href="#" class="forum-title">Study Groups</a>
+                    <p class="forum-description">Find and join study groups</p>
+                </li>
+            </ul>
+        </div>
+    </div>
+</section>
+=== ./views/pages/messages.html ===
+
+<section class="messages-section">
+    <h2>Messages</h2>
+    <div class="messages-container">
+        <div class="message-list">
+            <p>Your messages will appear here</p>
+        </div>
+    </div>
+</section>
+=== ./views/pages/404.html ===
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>404 - Page Not Found</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>404 - Page Not Found</h1>
+        <p>Oops! The page you're looking for doesn't exist.</p>
+        <p><a href="/">Go back to homepage</a></p>
+    </div>
+</body>
+</html>
+=== ./views/pages/index.html ===
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SCSU Student Forum</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div id="header-container"></div>
+
+    <div class="body">
+        <section class="forum-section">
+            <h2>Welcome to the SCSU Forums!</h2>
+        </section>
+    </div>
+
+    <div id="footer-container"></div>
+    <script src="/js/main.js"></script>
+    <script src="/js/api.js"></script>
+</body>
+</html>
+=== ./views/partials/footer.html ===
+
+<footer>
+    <p>&copy; 2024 SCSU Student Forum</p>
+</footer>
+=== ./views/partials/header.html ===
+
+
+<header class="header">
+    <div class="container">
+        <h1><a href="/" class="home-link">SCSU Student Forum</a></h1>
+        <nav>
+            <ul>
+                <li><a href="/forums">Forums</a></li>
+                <li><a href="/messages">Messages</a></li>
+                <li><a href="/account">Account</a></li>
+            </ul>
+        </nav>
+    </div>
+</header>
+=== ./views/templates/forumTemplate.html ===
+
+<h2 id="forum-title">FORUM NAME</h2>
+<h3 id="forum-description">FORUM DESCRIPTION</h3>
+
+<section class="gd-section">
+    
+</section>
+=== ./models/message.js ===
+
+
+=== ./models/User.js ===
+
+/**
+ * models/User.js
+ * Handles user-related database operations
+ */
+
+const db = require('../config/database');
+
+class User {
+    static async findAll() {
+        try {
+            console.log('Attempting to fetch all users');
+            const [rows] = await db.pool.query('SELECT * FROM users');
+            console.log('Successfully fetched users:', rows);
+            return rows;
+        } catch (error) {
+            console.error('Database error in findAll:', error.message);
+            // Re-throw the error with more details
+            throw new Error(`Database error in findAll: ${error.message}`);
+        }
+    }
+
+    static async create(userData) {
+        const query = 'INSERT INTO users (username, password_hash, email, role) VALUES (?, ?, ?, ?)';
+        const values = [
+            userData.username,
+            userData.password,
+            userData.email,
+            userData.role || 'owl'
+        ];
+
+        const [result] = await db.pool.query(query, values);
+        return result;
+    }
+}
+
+module.exports = User;
+=== ./models/Forum.js ===
+
+// models/Forum.js
+
+const db = require('../config/database');
+
+class Forum {
+    static async findAll() {
+        try {
+            console.log('Attempting to fetch all forums');
+            const [rows] = await db.pool.query('SELECT forum_id, name, description FROM forums');
+            console.log('Successfully fetched forums:', rows);
+            return rows;
+        } catch (error) {
+            console.error('Database error in Forum.findAll:', error.message);
+            throw new Error(`Database error in findAll: ${error.message}`);
+        }
+    }
+
+    static async findById(id) {
+        try {
+            console.log('Attempting to fetch forum with id:', id);
+            const [rows] = await db.pool.query(
+                'SELECT forum_id, name, description FROM forums WHERE forum_id = ?', 
+                [id]
+            );
+            console.log('Forum query result:', rows[0]);
+            return rows[0];
+        } catch (error) {
+            console.error('Database error in Forum.findById:', error.message);
+            throw new Error(`Database error in findById: ${error.message}`);
+        }
+    }
+}
+
+module.exports = Forum;
+=== ./public/css/styles.css ===
+
+/* Base styles */
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background-color: #f3f4f6;
+}
+
+/* Header */
+.header {
+    background-color: #003399;
+    color: white;
+    padding: 1rem;
+}
+
+.header .container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.home-link {
+    color: white;
+    text-decoration: none;
+}
+
+.header nav ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    gap: 1rem;
+}
+
+.header nav a {
+    color: white;
+    text-decoration: none;
+}
+
+/* Main content */
+.body {
+    flex: 1;
+    padding: 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+/* Forum section */
+.forum-section {
+    background-color: white;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* TEMPLATES -- by Tony */
+
+.gd-section {
+
+	background-color: #D1F6FF;
+    border-radius: 0.25rem;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    align-content: center;
+	text-align: center;
+
+	/* Setting border properties */
+	border-style: ridge;
+	border-width: 3px;
+
+}
+
+/* Account form */
+.account-form {
+    max-width: 400px;
+    margin: 20px auto;
+    padding: 20px;
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+}
+
+.form-group input {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.submit-btn, .display-btn {
+    background-color: #003399;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    width: 100%;
+    margin-top: 10px;
+}
+
+/* Footer */
+footer {
+    background-color: #003399;
+    color: white;
+    text-align: center;
+    padding: 1rem;
+    margin-top: auto;
+}
+=== ./public/js/api.js ===
+
+/**
+ * public/js/api.js
+ * API handlers for different features
+ */
+
+// User-related API calls
+const UserAPI = {
+    async fetchUsers() {
+        try {
+            const response = await fetch('/api/users', {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            
+            const users = await response.json();
+            this.displayUsers(users);
+            return users;
+        } catch (error) {
+            console.error('Error fetching users:', error);
+            throw error;
+        }
+    },
+
+    async createAccount(form) {
+        try {
+            const formData = new FormData(form);
+            const userData = {
+                username: formData.get('username'),
+                password: formData.get('password'),
+                email: formData.get('email')
+            };
+
+            const response = await fetch('/api/users/create', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(userData)
+            });
+
+            if (!response.ok) throw new Error('Failed to create account');
+
+            alert('Account created successfully!');
+            form.reset();
+        } catch (error) {
+            alert('Error creating account: ' + error.message);
+            throw error;
+        }
+    },
+
+    displayUsers(users) {
+        const contentDiv = document.querySelector('.forum-section');
+        if (!contentDiv) return;
+
+        contentDiv.innerHTML = '<h2>Users</h2><ul>';
+        
+        if (users.length === 0) {
+            contentDiv.innerHTML += '<li>No users found</li>';
+        } else {
+            users.forEach(user => {
+                contentDiv.innerHTML += `
+                    <li>
+                        <strong>User ID:</strong> ${user.user_id || 'N/A'} | 
+                        <strong>Username:</strong> ${user.username || 'N/A'} | 
+                        <strong>Email:</strong> ${user.email || 'N/A'}
+                    </li>`;
+            });
+        }
+        
+        contentDiv.innerHTML += '</ul>';
+    }
+};
+
+const ForumAPI = {
+    async fetchForums() {
+        try {
+            console.log('Fetching forums...');
+            const response = await fetch('/api/forums', {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                console.error('Server error:', errorData);
+                throw new Error(`HTTP error! status: ${response.status}, message: ${errorData.error}`);
+            }
+            
+            const forums = await response.json();
+            console.log('Forums fetched successfully:', forums);
+            return forums;
+        } catch (error) {
+            console.error('Error in fetchForums:', error);
+            throw error;
+        }
+    },
+
+    async fetchForumById(forumId) {
+        try {
+            console.log('Fetching forum:', forumId);
+            const response = await fetch(`/api/forums/${forumId}`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                console.error('Server error:', errorData);
+                throw new Error(`HTTP error! status: ${response.status}, message: ${errorData.error}`);
+            }
+
+            const forum = await response.json();
+            console.log('Forum fetched successfully:', forum);
+            return forum;
+        } catch (error) {
+            console.error('Error in fetchForumById:', error);
+            throw error;
+        }
+    }
+};
+
+// Message-related API calls (placeholder for future)
+const MessageAPI = {
+    // Message methods will go here
+};
+=== ./public/js/main.js ===
+
+/**
+ * public/js/main.js
+ * Core application setup and page management
+ */
+
+// Main application controller
+const App = {
+    init() {
+        this.initializeEvents();
+        this.loadPartials().then(() => {
+            this.setupNavigation();
+            this.initializeCurrentPage();
+        });
+    },
+
+    initializeEvents() {
+        // Custom event for page changes
+        document.addEventListener('pageLoaded', () => {
+            this.initializeCurrentPage();
+        });
+
+        // Handle popstate for browser back/forward
+        window.addEventListener('popstate', (event) => {
+            this.loadPage(window.location.pathname, false);
+        });
+    },
+
+    async loadPartials() {
+        try {
+            const headers = await this.loadPartial('header', 'header-container');
+            const footers = await this.loadPartial('footer', 'footer-container');
+            return Promise.all([headers, footers]);
+        } catch (error) {
+            console.error('Error loading partials:', error);
+        }
+    },
+
+    loadPartial(partialName, containerId) {
+        return new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open('GET', `/partial/${partialName}`, true);
+            
+            xhr.onload = function() {
+                if (xhr.status === 200) {
+                    document.getElementById(containerId).innerHTML = xhr.responseText;
+                    resolve();
+                } else {
+                    reject(new Error(`Failed to load ${partialName}`));
+                }
+            };
+            
+            xhr.onerror = () => reject(new Error('Network error'));
+            xhr.send();
+        });
+    },
+
+    setupNavigation() {
+        document.addEventListener('click', (e) => {
+            if (e.target.matches('nav a')) {
+                e.preventDefault();
+                const href = e.target.getAttribute('href');
+                this.loadPage(href);
+            }
+        });
+    },
+
+    async loadPage(url, pushState = true) {
+        try {
+            const response = await fetch(url);
+            const html = await response.text();
+            
+            const mainContent = document.querySelector('.body');
+            mainContent.innerHTML = html;
+
+            if (pushState) {
+                history.pushState({}, '', url);
+            }
+
+            // Trigger page loaded event
+            document.dispatchEvent(new CustomEvent('pageLoaded', {
+                detail: { path: url }
+            }));
+        } catch (error) {
+            console.error('Error loading page:', error);
+        }
+    },
+
+    initializeCurrentPage() {
+        // Initialize based on current page
+        const path = window.location.pathname;
+        
+        if (path.includes('/account')) {
+            PageHandlers.initializeAccountPage();
+        } else if (path.includes('/forums')) {
+            PageHandlers.initializeForumPage();
+        } else if (path.includes('/messages')) {
+            PageHandlers.initializeMessagePage();
+        }
+    }
+};
+
+// Page-specific handlers
+const PageHandlers = {
+    initializeAccountPage() {
+        console.log('Initializing account page');
+        
+        // Handle display users button
+        const displayButton = document.getElementById('displaydata');
+        if (displayButton) {
+            displayButton.addEventListener('click', async () => {
+                try {
+                    await UserAPI.fetchUsers();
+                } catch (error) {
+                    console.error('Error fetching users:', error);
+                }
+            });
+        }
+
+        // Handle account creation form
+        const createForm = document.getElementById('createAccountForm');
+        if (createForm) {
+            createForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                try {
+                    await UserAPI.createAccount(e.target);
+                } catch (error) {
+                    console.error('Error creating account:', error);
+                }
+            });
+        }
+    },
+
+    async initializeForumPage() {
+        console.log('Initializing forum page');
+        
+        try {
+            const forums = await ForumAPI.fetchForums();
+            console.log('Fetched forums:', forums);
+            
+            const forumList = document.querySelector('.forum-category ul');
+            if (forumList) {
+                forumList.innerHTML = forums.map(forum => `
+                    <li>
+                        <a href="/forum/${forum.forum_id}" 
+                           class="forum-link" 
+                           data-forum-id="${forum.forum_id}"
+                           data-forum-title="${forum.name}"
+                           data-forum-description="${forum.description}">
+                            ${forum.name}
+                        </a>
+                        <p class="forum-description">${forum.description}</p>
+                    </li>
+                `).join('');
+                
+                // Add click handlers for forum links
+                document.querySelectorAll('.forum-link').forEach(link => {
+                    link.addEventListener('click', async (e) => {
+                        e.preventDefault();
+                        const forumId = e.target.dataset.forumId;
+                        console.log('Forum link clicked:', forumId);
+                        
+                        try {
+                            // Fetch forum data from database
+                            const forum = await ForumAPI.fetchForumById(forumId);
+                            console.log('Fetched forum data:', forum);
+                            
+                            // Load template - Note the changed path
+                            const response = await fetch('/templates/forumTemplate');
+                            if (!response.ok) {
+                                throw new Error(`Failed to load template: ${response.status}`);
+                            }
+                            let template = await response.text();
+                            console.log('Loaded template');
+                            
+                            template = template
+                                .replace('FORUM NAME', forum.name)
+                                .replace('FORUM DESCRIPTION', forum.description);
+                            
+                            document.querySelector('.body').innerHTML = template;
+                            history.pushState({}, '', `/forum/${forumId}`);
+                            
+                        } catch (error) {
+                            console.error('Error loading forum:', error);
+                            alert('Failed to load forum. Please try again.');
+                        }
+                    });
+                });
+            }
+        } catch (error) {
+            console.error('Error initializing forum page:', error);
+            const forumSection = document.querySelector('.forum-section');
+            if (forumSection) {
+                forumSection.innerHTML = `
+                    <h2>Forums</h2>
+                    <p class="error-message">Sorry, we couldn't load the forums. Please try again later.</p>
+                `;
+            }
+        }
+    },
+
+    initializeMessagePage() {
+        console.log('Initializing message page');
+        // Message-specific initialization will go here
+    }
+};
+
+// Start the application
+document.addEventListener('DOMContentLoaded', () => {
+    App.init();
+});
+=== ./controllers/requestController.js ===
+
+/**
+ * controllers/requestController.js
+ * Routes requests to appropriate handlers based on HTTP method
+ */
+
+const handlers = require('./handlers');
+
+async function handleRequest(req, res) {
+    console.log(`${req.method} request received for: ${req.url}`);
+
+    const methodHandlers = handlers[req.method];
+    if (!methodHandlers) {
+        res.writeHead(405);
+        res.end('Method Not Allowed');
+        return;
+    }
+
+    try {
+        // Route based on URL pattern
+        if (req.url.match(/\.(css|js|png|jpg|gif|ico)$/)) {
+            await methodHandlers.handleStaticFile(req, res);
+        }
+        else if (req.url.startsWith('/partial/')) {
+            await methodHandlers.handlePartial(req, res);
+        }
+        else if (req.url.startsWith('/api/')) {
+            await methodHandlers.handleApi(req, res);
+        }
+        else {
+            await methodHandlers.handlePage(req, res);
+        }
+    } catch (error) {
+        console.error('Request handling error:', error);
+        res.writeHead(500);
+        res.end('Internal Server Error');
+    }
+}
+
+module.exports = { handleRequest };
+=== ./controllers/handlers/index.js ===
+
+/**
+ * controllers/handlers/index.js
+ * Registry of HTTP method handlers
+ */
+
+const getHandlers = require('./getHandlers');
+const postHandlers = require('./postHandlers');
+
+module.exports = {
+    GET: getHandlers,
+    POST: postHandlers
+};
+=== ./controllers/handlers/getHandlers.js ===
+
+/**
+ * controllers/handlers/getHandlers.js
+ * Handles all GET requests
+ */
+
+const path = require('path');
+const fs = require('fs').promises;
+const mimeTypes = require('../../utils/mimeTypes');
+const templateService = require('../../services/templateService');
+const User = require('../../models/User');
+const Forum = require('../../models/Forum');
+
+const getHandlers = {
+    async handleStaticFile(req, res) {
+        try {
+            const filePath = path.join(__dirname, '../../public', req.url);
+            const extname = path.extname(filePath).toLowerCase();
+            const contentType = mimeTypes[extname] || 'application/octet-stream';
+
+            const content = await fs.readFile(filePath);
+            res.writeHead(200, { 'Content-Type': contentType });
+            res.end(content);
+        } catch (error) {
+            res.writeHead(404);
+            res.end('File not found');
+        }
+    },
+
+    async handlePartial(req, res) {
+        try {
+            const requestedPath = req.url.split('/partial/')[1];
+            console.log('Loading partial/template:', requestedPath);
+            
+            let content;
+            // Check if it's a forum template request
+            if (requestedPath === 'forumTemplate') {
+                content = await fs.readFile(path.join(__dirname, '../../views/templates/forumTemplate.html'), 'utf8');
+            } else {
+                // Handle regular partials
+                content = await fs.readFile(path.join(__dirname, '../../views/partials', `${requestedPath}.html`), 'utf8');
+            }
+            
+            res.writeHead(200, { 'Content-Type': 'text/html' });
+            res.end(content);
+        } catch (err) {
+            console.error('Error loading partial/template:', err);
+            res.writeHead(404);
+            res.end('Partial or template not found');
+        }
+    },
+
+    async handlePage(req, res) {
+        try {
+            let pageName = req.url === '/' ? 'index' : req.url.match(/^\/([^/]+)/)[1];
+            let pageContent;
+
+            if (pageName === 'index') {
+                pageContent = await fs.readFile(path.join(__dirname, '../../views/pages/index.html'), 'utf8');
+            } else {
+                const template = templateService.getTemplateHTML();
+                const content = await templateService.readPageContent(pageName);
+                pageContent = template.replace('{{content}}', content);
+            }
+
+            res.writeHead(200, { 'Content-Type': 'text/html' });
+            res.end(pageContent);
+        } catch (error) {
+            const notFoundContent = await fs.readFile(path.join(__dirname, '../../views/pages/404.html'), 'utf8');
+            res.writeHead(404, { 'Content-Type': 'text/html' });
+            res.end(notFoundContent);
+        }
+    },
+
+    async handleApi(req, res) {
+        if (req.url === '/api/users') {
+            try {
+                const users = await User.findAll();
+                res.writeHead(200, { 
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                });
+                res.end(JSON.stringify(users));
+            } catch (error) {
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Database error' }));
+            }
+        }
+        else if (req.url === '/api/forums') {
+            try {
+                console.log('Forum model available:', !!Forum); // Add this debug line
+                console.log('Attempting to fetch forums');
+                const forums = await Forum.findAll();
+                console.log('Forums fetched:', forums);
+                
+                res.writeHead(200, { 
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                });
+                res.end(JSON.stringify(forums));
+            } catch (error) {
+                console.error('Error in /api/forums:', error);
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ 
+                    error: 'Database error',
+                    details: error.message,
+                    stack: error.stack // Add stack trace for debugging
+                }));
+            }
+        }
+        else if (req.url.match(/^\/api\/forums\/\d+$/)) {
+            try {
+                const forumId = req.url.split('/').pop();
+                const forum = await Forum.findById(forumId);
+                
+                if (!forum) {
+                    res.writeHead(404, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ error: 'Forum not found' }));
+                    return;
+                }
+    
+                res.writeHead(200, { 
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                });
+                res.end(JSON.stringify(forum));
+            } catch (error) {
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Database error' }));
+            }
+        } else {
+            res.writeHead(404, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'API endpoint not found' }));
+        }
+    }
+};
+
+module.exports = getHandlers;
+=== ./controllers/handlers/postHandlers.js ===
+
+/**
+ * controllers/handlers/postHandlers.js
+ * Handles all POST requests
+ */
+
+const User = require('../../models/User');
+
+const postHandlers = {
+    async handleApi(req, res) {
+        if (req.url === '/api/users/create') {
+            let body = '';
+            req.on('data', chunk => {
+                body += chunk.toString();
+            });
+            
+            req.on('end', async () => {
+                try {
+                    const userData = JSON.parse(body);
+                    const newUser = await User.create(userData);
+                    
+                    res.writeHead(200, { 
+                        'Content-Type': 'application/json',
+                        'Access-Control-Allow-Origin': '*'
+                    });
+                    res.end(JSON.stringify({ 
+                        message: 'User created successfully',
+                        userId: newUser.insertId 
+                    }));
+                } catch (error) {
+                    res.writeHead(500, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ error: 'Error creating user' }));
+                }
+            });
+        } else {
+            res.writeHead(404, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'API endpoint not found' }));
+        }
+    }
+};
+
+module.exports = postHandlers;
+=== ./controllers/handlers/deleteHandlers.js ===
+
