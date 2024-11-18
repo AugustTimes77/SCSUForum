@@ -218,3 +218,22 @@ button.cancelPost {  		/* For our Cancel button */
     align-content: center;
     width: 50%;			/* temporary, keep if good */
 }
+
+
+/* TEMPLATES -- by Tony */
+
+.gd-section {
+
+	background-color: #D1F6FF;
+    border-radius: 0.25rem;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    align-content: center;
+	text-align: center;
+
+	/* Setting border properties */
+	border-style: ridge;
+	border-width: 3px;
+
+}
