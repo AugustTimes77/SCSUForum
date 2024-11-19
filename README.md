@@ -122,36 +122,9 @@ The application will be available at `http://localhost:80`
 - `.html` - HTML templates and pages
 - `.css` - Stylesheet files
 
-## Security Features
-
-- Path traversal prevention
-- SQL injection protection through parameterized queries
-- XSS protection through content sanitization
-- Secure password hashing
-
-## Development Guidelines
-
-1. Follow the established folder structure
-2. Use consistent error handling patterns
-3. Document new API endpoints
-4. Test all database operations
-5. Follow existing naming conventions
-
 ## Error Handling
 
 The application implements consistent error handling:
 - Client-side errors are displayed to users
 - Server-side errors are logged and generic messages returned
 - Database errors are caught and handled appropriately
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
-
-## License
-
-[Add appropriate license information]
