@@ -152,25 +152,19 @@ const PageHandlers = {
                     </li>
                 `).join('');
                 
-                // Add click handlers for forum links
                 document.querySelectorAll('.forum-link').forEach(link => {
                     link.addEventListener('click', async (e) => {
                         e.preventDefault();
                         const forumId = e.target.dataset.forumId;
-                        console.log('Forum link clicked:', forumId);
                         
                         try {
-                            // Fetch forum data from database
-                            const forum = await ForumAPI.fetchForumById(forumId);
-                            console.log('Fetched forum data:', forum);
+                            const [forum, posts] = await Promise.all([
+                                ForumAPI.fetchForumById(forumId),
+                                PostAPI.fetchPostsByForumId(forumId)
+                            ]);
                             
-                            // Load template - Note the changed path
                             const response = await fetch('/templates/forumTemplate');
-                            if (!response.ok) {
-                                throw new Error(`Failed to load template: ${response.status}`);
-                            }
                             let template = await response.text();
-                            console.log('Loaded template');
                             
                             template = template
                                 .replace('FORUM NAME', forum.name)
@@ -178,6 +172,8 @@ const PageHandlers = {
                             
                             document.querySelector('.body').innerHTML = template;
                             history.pushState({}, '', `/forum/${forumId}`);
+                            
+                            PostAPI.displayPosts(posts);
                             
                         } catch (error) {
                             console.error('Error loading forum:', error);

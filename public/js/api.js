@@ -163,15 +163,15 @@ const PostAPI = {
 
         contentDiv.innerHTML = '<h2>Posts</h2><ul>';
         
-        if (users.length === 0) {
+        if (posts.length === 0) {
             contentDiv.innerHTML += '<li>No posts found</li>';
         } else {
-            users.forEach(user => {
+            posts.forEach(post => {
                 contentDiv.innerHTML += `
-                    <li>
-                        <strong>User ID:</strong> ${post.title || 'N/A'} | 
-                        <strong>Username:</strong> ${post.content || 'N/A'} | 
-                        <strong>Email:</strong> ${post.created_at || 'N/A'}
+                    <li class="post-item">
+                        <h3>${post.title}</h3>
+                        <p>${post.content}</p>
+                        <small>Posted on: ${new Date(post.created_at).toLocaleDateString()}</small>
                     </li>`;
             });
         }

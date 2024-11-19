@@ -72,65 +72,33 @@ const getHandlers = {
     },
 
     async handleApi(req, res) {
-        if (req.url === '/api/users') {
-            try {
+        try {
+            if (req.url === '/api/users') {
                 const users = await User.findAll();
                 res.writeHead(200, { 
                     'Content-Type': 'application/json',
                     'Access-Control-Allow-Origin': '*'
                 });
                 res.end(JSON.stringify(users));
-            } catch (error) {
-                res.writeHead(500, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ error: 'Database error' }));
             }
-        }
-        else if (req.url === '/api/forums') {
-            try {
-                console.log('Forum model available:', !!Forum); // Add this debug line
-                console.log('Attempting to fetch forums');
+            else if (req.url === '/api/forums') {
                 const forums = await Forum.findAll();
-                console.log('Forums fetched:', forums);
-                
                 res.writeHead(200, { 
                     'Content-Type': 'application/json',
                     'Access-Control-Allow-Origin': '*'
                 });
                 res.end(JSON.stringify(forums));
-            } catch (error) {
-                console.error('Error in /api/forums:', error);
-                res.writeHead(500, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ 
-                    error: 'Database error',
-                    details: error.message,
-                    stack: error.stack // Add stack trace for debugging
-                }));
             }
-        }
-        else if (req.url === '/api/forums/posts') {
-            try {
-                console.log('Forum model available:', !!Forum);
-                console.log('Attempting to fetch forums');
-                const forumposts = await Forum.findPostsById();
-                console.log('Forum posts fetched:', forumposts);
-
-                res.writeHead(200, {
+            else if (req.url.match(/^\/api\/forums\/posts\/\d+$/)) {
+                const forumId = req.url.split('/').pop();
+                const posts = await Forum.findPostsById(forumId);
+                res.writeHead(200, { 
                     'Content-Type': 'application/json',
                     'Access-Control-Allow-Origin': '*'
                 });
-                res.end(JSON.stringify(forums));
-            } catch (error) {
-                console.error('Error in /api/forums/posts', error);
-                res.writeHead(500, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ 
-                    error: 'Database error',
-                    details: error.message,
-                    stack: error.stack // Add stack trace for debugging
-                }));
+                res.end(JSON.stringify(posts));
             }
-        }
-        else if (req.url.match(/^\/api\/forums\/\d+$/)) {
-            try {
+            else if (req.url.match(/^\/api\/forums\/\d+$/)) {
                 const forumId = req.url.split('/').pop();
                 const forum = await Forum.findById(forumId);
                 
@@ -145,13 +113,15 @@ const getHandlers = {
                     'Access-Control-Allow-Origin': '*'
                 });
                 res.end(JSON.stringify(forum));
-            } catch (error) {
-                res.writeHead(500, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ error: 'Database error' }));
+            } else {
+                res.writeHead(404, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'API endpoint not found' }));
             }
-        } else {
-            res.writeHead(404, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'API endpoint not found' }));
+        } catch (error) {
+            if (!res.headersSent) {
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Server error' }));
+            }
         }
     },
     async handleTemplate(req, res) {

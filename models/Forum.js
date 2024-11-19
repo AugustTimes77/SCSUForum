@@ -32,8 +32,8 @@ class Forum {
 
     static async findPostsById(id) {
         try {
-            console.log('Attempting to getch posts with forum id:', id);
-            const [rows] = await db.pool.query('SELECT title. content, created_at FROM posts WHERE forum_id = ?',
+            console.log('Attempting to fetch posts with forum id:', id);
+            const [rows] = await db.pool.query('SELECT title, content, created_at FROM posts WHERE forum_id = ?',
                 [id]
             );
             return rows;

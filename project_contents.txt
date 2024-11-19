@@ -22,6 +22,7 @@
 │   └── js
 │       ├── api.js
 │       └── main.js
+├── README.md
 ├── server.js
 ├── services
 │   ├── authServices.js
@@ -43,7 +44,7 @@
     └── templates
         └── forumTemplate.html
 
-14 directories, 30 files
+14 directories, 31 files
 === FILE CONTENTS ===
 
 === ./app.js ===
@@ -459,7 +460,7 @@ class Forum {
 
     static async findPostsById(id) {
         try {
-            console.log('Attempting to getch posts with forum id:', id);
+            console.log('Attempting to fetch posts with forum id:', id);
             const [rows] = await db.pool.query('SELECT title. content, created_at FROM posts WHERE forum_id = ?',
                 [id]
             );
@@ -760,15 +761,15 @@ const PostAPI = {
 
         contentDiv.innerHTML = '<h2>Posts</h2><ul>';
         
-        if (users.length === 0) {
+        if (posts.length === 0) {
             contentDiv.innerHTML += '<li>No posts found</li>';
         } else {
-            users.forEach(user => {
+            posts.forEach(post => {
                 contentDiv.innerHTML += `
-                    <li>
-                        <strong>User ID:</strong> ${post.title || 'N/A'} | 
-                        <strong>Username:</strong> ${post.content || 'N/A'} | 
-                        <strong>Email:</strong> ${post.created_at || 'N/A'}
+                    <li class="post-item">
+                        <h3>${post.title}</h3>
+                        <p>${post.content}</p>
+                        <small>Posted on: ${new Date(post.created_at).toLocaleDateString()}</small>
                     </li>`;
             });
         }
@@ -942,20 +943,11 @@ const PageHandlers = {
                     link.addEventListener('click', async (e) => {
                         e.preventDefault();
                         const forumId = e.target.dataset.forumId;
-                        console.log('Forum link clicked:', forumId);
                         
                         try {
-                            // Fetch forum data from database
                             const forum = await ForumAPI.fetchForumById(forumId);
-                            console.log('Fetched forum data:', forum);
-                            
-                            // Load template - Note the changed path
                             const response = await fetch('/templates/forumTemplate');
-                            if (!response.ok) {
-                                throw new Error(`Failed to load template: ${response.status}`);
-                            }
                             let template = await response.text();
-                            console.log('Loaded template');
                             
                             template = template
                                 .replace('FORUM NAME', forum.name)
@@ -963,6 +955,9 @@ const PageHandlers = {
                             
                             document.querySelector('.body').innerHTML = template;
                             history.pushState({}, '', `/forum/${forumId}`);
+                
+                            // Load posts after the template is loaded
+                            await PostAPI.fetchPostsByForumId(forumId);
                             
                         } catch (error) {
                             console.error('Error loading forum:', error);
@@ -1162,26 +1157,19 @@ const getHandlers = {
                 }));
             }
         }
-        else if (req.url === '/api/forums/posts') {
+        if (req.url.match(/^\/api\/forums\/posts\/\d+$/)) {
             try {
-                console.log('Forum model available:', !!Forum);
-                console.log('Attempting to fetch forums');
-                const forumposts = await Forum.findPostsById();
-                console.log('Forum posts fetched:', forumposts);
-
-                res.writeHead(200, {
+                const forumId = req.url.split('/').pop();
+                const posts = await Forum.findPostsById(forumId);
+                
+                res.writeHead(200, { 
                     'Content-Type': 'application/json',
                     'Access-Control-Allow-Origin': '*'
                 });
-                res.end(JSON.stringify(forums));
+                res.end(JSON.stringify(posts));
             } catch (error) {
-                console.error('Error in /api/forums/posts', error);
                 res.writeHead(500, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ 
-                    error: 'Database error',
-                    details: error.message,
-                    stack: error.stack // Add stack trace for debugging
-                }));
+                res.end(JSON.stringify({ error: 'Database error' }));
             }
         }
         else if (req.url.match(/^\/api\/forums\/\d+$/)) {
@@ -1279,3 +1267,162 @@ module.exports = postHandlers;
 === ./.gitignore ===
 
 node_modules/
+=== ./README.md ===
+
+# SCSU Student Forum
+
+A web-based forum application for SCSU students built with Node.js and vanilla JavaScript.
+
+## Project Overview
+
+This project implements a student forum platform with the following features:
+- User account management
+- Forum discussions organized by topics
+- Messaging system
+- Responsive design with a clean user interface
+
+## Project Structure
+
+```
+.
+├── app.js                  # Application setup and main request handler
+├── config/                 # Configuration files
+│   └── database.js        # Database connection setup
+├── controllers/           # Request handling logic
+│   ├── handlers/         # HTTP method-specific handlers
+│   └── requestController.js
+├── models/               # Database models
+│   ├── Forum.js         # Forum-related database operations
+│   ├── Message.js       # Message-related database operations
+│   └── User.js          # User-related database operations
+├── public/              # Static assets
+│   ├── css/            # Stylesheets
+│   └── js/             # Client-side JavaScript
+├── services/           # Business logic services
+├── utils/              # Utility functions
+├── views/              # HTML templates
+│   ├── pages/          # Page templates
+│   ├── partials/       # Reusable page components
+│   └── templates/      # Dynamic content templates
+└── server.js           # Server entry point
+```
+
+## Prerequisites
+
+- Node.js (Latest LTS version recommended)
+- MySQL Server
+- npm (Node Package Manager)
+
+## Database Setup
+
+1. Create a MySQL database named `scsuforum`
+2. The database requires the following tables:
+   - users
+   - forums
+   - posts
+   - messages
+
+Example database schema:
+```sql
+CREATE TABLE users (
+    user_id INT PRIMARY KEY AUTO_INCREMENT,
+    username VARCHAR(50) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    email VARCHAR(100) UNIQUE NOT NULL,
+    role VARCHAR(20) DEFAULT 'owl'
+);
+
+CREATE TABLE forums (
+    forum_id INT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(100) NOT NULL,
+    description TEXT
+);
+```
+
+## Installation
+
+1. Clone the repository:
+```bash
+git clone [repository-url]
+```
+
+2. Install dependencies:
+```bash
+npm install
+```
+
+3. Configure the database connection in `config/database.js`
+
+4. Start the server:
+```bash
+node server.js
+```
+
+The application will be available at `http://localhost:80`
+
+## Key Components
+
+### Backend
+
+- **Server**: Uses Node.js native HTTP server
+- **Database**: MySQL with connection pooling
+- **Request Handling**: Custom routing system with method-based handlers
+- **Template Service**: Custom HTML template processing
+
+### Frontend
+
+- **Templating**: Custom template system with partials support
+- **API Integration**: Fetch-based API calls
+- **Navigation**: History API-based navigation
+- **Styling**: Custom CSS with responsive design
+
+## API Endpoints
+
+### Users
+- `GET /api/users` - Retrieve all users
+- `POST /api/users/create` - Create new user
+
+### Forums
+- `GET /api/forums` - Retrieve all forums
+- `GET /api/forums/:id` - Retrieve specific forum
+- `GET /api/forums/posts/:id` - Retrieve posts for a specific forum
+
+## File Types
+
+- `.js` - JavaScript source files
+- `.html` - HTML templates and pages
+- `.css` - Stylesheet files
+
+## Security Features
+
+- Path traversal prevention
+- SQL injection protection through parameterized queries
+- XSS protection through content sanitization
+- Secure password hashing
+
+## Development Guidelines
+
+1. Follow the established folder structure
+2. Use consistent error handling patterns
+3. Document new API endpoints
+4. Test all database operations
+5. Follow existing naming conventions
+
+## Error Handling
+
+The application implements consistent error handling:
+- Client-side errors are displayed to users
+- Server-side errors are logged and generic messages returned
+- Database errors are caught and handled appropriately
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
+
+## License
+
+[Add appropriate license information]
