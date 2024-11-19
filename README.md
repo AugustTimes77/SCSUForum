@@ -44,12 +44,15 @@ This project implements a student forum platform with the following features:
 
 ## Database Setup
 
+If you are using a database on your system do this:
 1. Create a MySQL database named `scsuforum`
 2. The database requires the following tables:
    - users
    - forums
    - posts
    - messages
+
+If you are using the VM database check the discord!
 
 Example database schema:
 ```sql
