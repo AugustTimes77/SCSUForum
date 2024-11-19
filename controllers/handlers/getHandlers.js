@@ -107,6 +107,28 @@ const getHandlers = {
                 }));
             }
         }
+        else if (req.url === '/api/forums/posts') {
+            try {
+                console.log('Forum model available:', !!Forum);
+                console.log('Attempting to fetch forums');
+                const forumposts = await Forum.findPostsById();
+                console.log('Forum posts fetched:', forumposts);
+
+                res.writeHead(200, {
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                });
+                res.end(JSON.stringify(forums));
+            } catch (error) {
+                console.error('Error in /api/forums/posts', error);
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ 
+                    error: 'Database error',
+                    details: error.message,
+                    stack: error.stack // Add stack trace for debugging
+                }));
+            }
+        }
         else if (req.url.match(/^\/api\/forums\/\d+$/)) {
             try {
                 const forumId = req.url.split('/').pop();

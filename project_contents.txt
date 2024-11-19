@@ -10,6 +10,7 @@
 │   │   └── postHandlers.js
 │   └── requestController.js
 ├── favicon.ico
+├── .gitignore
 ├── models
 │   ├── Forum.js
 │   ├── message.js
@@ -42,7 +43,7 @@
     └── templates
         └── forumTemplate.html
 
-14 directories, 29 files
+14 directories, 30 files
 === FILE CONTENTS ===
 
 === ./app.js ===
@@ -204,7 +205,9 @@ class TemplateService {
         this.viewsDir = path.join(__dirname, '../views');
         this.partialsDir = path.join(this.viewsDir, 'partials');
         this.pagesDir = path.join(this.viewsDir, 'pages');
+        this.templatesDir = path.join(this.viewsDir, 'templates');  // Add this line
     }
+
 
     async readPartial(partialName) {
         return await fs.readFile(path.join(this.partialsDir, `${partialName}.html`), 'utf8');
@@ -212,6 +215,10 @@ class TemplateService {
 
     async readPageContent(pageName) {
         return await fs.readFile(path.join(this.pagesDir, `${pageName}.html`), 'utf8');
+    }
+
+    async readTemplateContent(templateName) {
+        return await fs.readFile(path.join(this.templatesDir, `${templateName}.html`), 'utf8');
     }
 
     getTemplateHTML() {
@@ -368,11 +375,12 @@ module.exports = new TemplateService();
 </header>
 === ./views/templates/forumTemplate.html ===
 
-<h2 id="forum-title">FORUM NAME</h2>
-<h3 id="forum-description">FORUM DESCRIPTION</h3>
-
-<section class="gd-section">
-    
+<div class="body">
+    <h2 id="forum-title">FORUM NAME</h2>
+    <h3 id="forum-description">FORUM DESCRIPTION</h3>
+    <section class="gd-section">
+        
+    </section>
 </section>
 === ./models/message.js ===
 
@@ -446,6 +454,18 @@ class Forum {
         } catch (error) {
             console.error('Database error in Forum.findById:', error.message);
             throw new Error(`Database error in findById: ${error.message}`);
+        }
+    }
+
+    static async findPostsById(id) {
+        try {
+            console.log('Attempting to getch posts with forum id:', id);
+            const [rows] = await db.pool.query('SELECT title. content, created_at FROM posts WHERE forum_id = ?',
+                [id]
+            );
+            return rows;
+        } catch (error) {
+            throw new Error(`Database error in findPostsById: ${error.message}`)
         }
     }
 }
@@ -652,6 +672,7 @@ const UserAPI = {
     }
 };
 
+// forum related API calls
 const ForumAPI = {
     async fetchForums() {
         try {
@@ -701,6 +722,58 @@ const ForumAPI = {
             console.error('Error in fetchForumById:', error);
             throw error;
         }
+    }
+
+
+};
+
+// post related API calls
+const PostAPI = {
+    async fetchPostsByForumId(forumId){
+        try {
+            console.log('Fetching posts from forum:', forumId);
+            const response = await fetch(`/api/forums/posts/${forumId}`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                console.error('Server error:', errorData);
+                throw new Error(`HTTP error! status: ${response.status}, message: ${errorData.error}`);
+            }
+
+            const posts = await response.json();
+            this.displayPosts(posts);
+            return posts;
+        } catch (error) {
+            console.error('Error in fetchPostsByForumId:', error);
+            throw error;
+        }
+    },
+
+    displayPosts(posts){
+        const contentDiv = document.querySelector('.gd-section');
+        if (!contentDiv) return;
+
+        contentDiv.innerHTML = '<h2>Posts</h2><ul>';
+        
+        if (users.length === 0) {
+            contentDiv.innerHTML += '<li>No posts found</li>';
+        } else {
+            users.forEach(user => {
+                contentDiv.innerHTML += `
+                    <li>
+                        <strong>User ID:</strong> ${post.title || 'N/A'} | 
+                        <strong>Username:</strong> ${post.content || 'N/A'} | 
+                        <strong>Email:</strong> ${post.created_at || 'N/A'}
+                    </li>`;
+            });
+        }
+        
+        contentDiv.innerHTML += '</ul>';
     }
 };
 
@@ -940,7 +1013,7 @@ async function handleRequest(req, res) {
     }
 
     try {
-        // Route based on URL pattern
+        // route based on URL pattern
         if (req.url.match(/\.(css|js|png|jpg|gif|ico)$/)) {
             await methodHandlers.handleStaticFile(req, res);
         }
@@ -949,6 +1022,9 @@ async function handleRequest(req, res) {
         }
         else if (req.url.startsWith('/api/')) {
             await methodHandlers.handleApi(req, res);
+        }
+        else if (req.url.startsWith('/templates/')) {
+            await methodHandlers.handleTemplate(req, res);
         }
         else {
             await methodHandlers.handlePage(req, res);
@@ -1086,6 +1162,28 @@ const getHandlers = {
                 }));
             }
         }
+        else if (req.url === '/api/forums/posts') {
+            try {
+                console.log('Forum model available:', !!Forum);
+                console.log('Attempting to fetch forums');
+                const forumposts = await Forum.findPostsById();
+                console.log('Forum posts fetched:', forumposts);
+
+                res.writeHead(200, {
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                });
+                res.end(JSON.stringify(forums));
+            } catch (error) {
+                console.error('Error in /api/forums/posts', error);
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ 
+                    error: 'Database error',
+                    details: error.message,
+                    stack: error.stack // Add stack trace for debugging
+                }));
+            }
+        }
         else if (req.url.match(/^\/api\/forums\/\d+$/)) {
             try {
                 const forumId = req.url.split('/').pop();
@@ -1109,6 +1207,24 @@ const getHandlers = {
         } else {
             res.writeHead(404, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ error: 'API endpoint not found' }));
+        }
+    },
+    async handleTemplate(req, res) {
+        try {
+            const templateName = req.url.split('/templates/')[1];
+            console.log('Loading template:', templateName);
+            
+            const content = await fs.readFile(
+                path.join(__dirname, '../../views/templates', `${templateName}.html`),
+                'utf8'
+            );
+            
+            res.writeHead(200, { 'Content-Type': 'text/html' });
+            res.end(content);
+        } catch (err) {
+            console.error('Error loading template:', err);
+            res.writeHead(404);
+            res.end('Template not found');
         }
     }
 };
@@ -1159,3 +1275,7 @@ const postHandlers = {
 module.exports = postHandlers;
 === ./controllers/handlers/deleteHandlers.js ===
 
+
+=== ./.gitignore ===
+
+node_modules/

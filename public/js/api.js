@@ -75,6 +75,7 @@ const UserAPI = {
     }
 };
 
+// forum related API calls
 const ForumAPI = {
     async fetchForums() {
         try {
@@ -124,6 +125,58 @@ const ForumAPI = {
             console.error('Error in fetchForumById:', error);
             throw error;
         }
+    }
+
+
+};
+
+// post related API calls
+const PostAPI = {
+    async fetchPostsByForumId(forumId){
+        try {
+            console.log('Fetching posts from forum:', forumId);
+            const response = await fetch(`/api/forums/posts/${forumId}`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                console.error('Server error:', errorData);
+                throw new Error(`HTTP error! status: ${response.status}, message: ${errorData.error}`);
+            }
+
+            const posts = await response.json();
+            this.displayPosts(posts);
+            return posts;
+        } catch (error) {
+            console.error('Error in fetchPostsByForumId:', error);
+            throw error;
+        }
+    },
+
+    displayPosts(posts){
+        const contentDiv = document.querySelector('.gd-section');
+        if (!contentDiv) return;
+
+        contentDiv.innerHTML = '<h2>Posts</h2><ul>';
+        
+        if (users.length === 0) {
+            contentDiv.innerHTML += '<li>No posts found</li>';
+        } else {
+            users.forEach(user => {
+                contentDiv.innerHTML += `
+                    <li>
+                        <strong>User ID:</strong> ${post.title || 'N/A'} | 
+                        <strong>Username:</strong> ${post.content || 'N/A'} | 
+                        <strong>Email:</strong> ${post.created_at || 'N/A'}
+                    </li>`;
+            });
+        }
+        
+        contentDiv.innerHTML += '</ul>';
     }
 };
 

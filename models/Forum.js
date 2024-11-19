@@ -29,6 +29,18 @@ class Forum {
             throw new Error(`Database error in findById: ${error.message}`);
         }
     }
+
+    static async findPostsById(id) {
+        try {
+            console.log('Attempting to getch posts with forum id:', id);
+            const [rows] = await db.pool.query('SELECT title. content, created_at FROM posts WHERE forum_id = ?',
+                [id]
+            );
+            return rows;
+        } catch (error) {
+            throw new Error(`Database error in findPostsById: ${error.message}`)
+        }
+    }
 }
 
 module.exports = Forum;
