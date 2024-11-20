@@ -8,32 +8,31 @@ This project implements a student forum platform with the following features:
 - User account management
 - Forum discussions organized by topics
 - Messaging system
-- Responsive design with a clean user interface
 
 ## Project Structure
 
 ```
 .
-├── app.js                  # Application setup and main request handler
-├── config/                 # Configuration files
+├── app.js                 # Application setup and main request handler
+├── config/                # Configuration files
 │   └── database.js        # Database connection setup
 ├── controllers/           # Request handling logic
-│   ├── handlers/         # HTTP method-specific handlers
+│   ├── handlers/          # HTTP method-specific handlers
 │   └── requestController.js
-├── models/               # Database models
-│   ├── Forum.js         # Forum-related database operations
-│   ├── Message.js       # Message-related database operations
-│   └── User.js          # User-related database operations
-├── public/              # Static assets
-│   ├── css/            # Stylesheets
-│   └── js/             # Client-side JavaScript
-├── services/           # Business logic services
-├── utils/              # Utility functions
-├── views/              # HTML templates
-│   ├── pages/          # Page templates
-│   ├── partials/       # Reusable page components
-│   └── templates/      # Dynamic content templates
-└── server.js           # Server entry point
+├── models/                # Database models
+│   ├── Forum.js           # Forum-related database operations
+│   ├── Message.js         # Message-related database operations
+│   └── User.js            # User-related database operations
+├── public/                # Static assets
+│   ├── css/               # Stylesheets
+│   └── js/                # Client-side JavaScript
+├── services/              # Business logic services
+├── utils/                 # Utility functions
+├── views/                 # HTML templates
+│   ├── pages/             # Page templates
+│   ├── partials/          # Reusable page components
+│   └── templates/         # Dynamic content templates
+└── server.js              # Server entry point
 ```
 
 ## Prerequisites
@@ -41,35 +40,6 @@ This project implements a student forum platform with the following features:
 - Node.js (Latest LTS version recommended)
 - MySQL Server
 - npm (Node Package Manager)
-
-## Database Setup
-
-If you are using a database on your system do this:
-1. Create a MySQL database named `scsuforum`
-2. The database requires the following tables:
-   - users
-   - forums
-   - posts
-   - messages
-
-If you are using the VM database check the discord!
-
-Example database schema:
-```sql
-CREATE TABLE users (
-    user_id INT PRIMARY KEY AUTO_INCREMENT,
-    username VARCHAR(50) UNIQUE NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
-    email VARCHAR(100) UNIQUE NOT NULL,
-    role VARCHAR(20) DEFAULT 'owl'
-);
-
-CREATE TABLE forums (
-    forum_id INT PRIMARY KEY AUTO_INCREMENT,
-    name VARCHAR(100) NOT NULL,
-    description TEXT
-);
-```
 
 ## Installation
 
