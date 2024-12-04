@@ -125,9 +125,30 @@ const ForumAPI = {
             console.error('Error in fetchForumById:', error);
             throw error;
         }
+    },
+
+    async createPost(postData) {
+        try {
+            const response = await fetch('/api/forums/posts/create', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(postData)
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.message || 'Failed to create post');
+            }
+
+            const result = await response.json();
+            return result;
+        } catch (error) {
+            console.error('Error creating post:', error);
+            throw error;
+        }
     }
-
-
 };
 
 // post related API calls
@@ -168,16 +189,23 @@ const PostAPI = {
         } else {
             posts.forEach(post => {
                 contentDiv.innerHTML += `
-                    <li class="post-item">
-                        <h3>${post.title}</h3>
-                        <p>${post.content}</p>
-                        <small>Posted on: ${new Date(post.created_at).toLocaleDateString()}</small>
-                    </li>`;
+                    <div class="post-item">
+                        <li class="main-post">
+                            <h3>${post.title}</h3>
+                            <p>${post.content}</p>
+                        </li>
+                        <li class="sub-post">
+                            <small>Posted on: ${new Date(post.created_at).toLocaleDateString()}</small>
+                            <button>Comment</button>
+                        </li>
+                    </div>`;
             });
         }
         
         contentDiv.innerHTML += '</ul>';
-    }
+    },
+
+
 };
 
 // Message-related API calls (placeholder for future)

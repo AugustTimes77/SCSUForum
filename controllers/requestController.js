@@ -1,37 +1,83 @@
-/**
- * controllers/requestController.js
- * Routes requests to appropriate handlers based on HTTP method
- */
-
+// controllers/requestController.js
 const handlers = require('./handlers');
+
+// Route definitions mapping URLs to handler functions
+const routes = {
+    GET: {
+        static: {
+            pattern: /\.(css|js|png|jpg|gif|ico)$/,
+            handler: 'handleStaticFile'
+        },
+        partial: {
+            pattern: /^\/partial\//,
+            handler: 'handlePartial'
+        },
+        api: {
+            pattern: /^\/api\//,
+            handler: 'handleApi'
+        },
+        template: {
+            pattern: /^\/templates\//,
+            handler: 'handleTemplate'
+        },
+        forum: {
+            pattern: /^\/forum\/([^/]+)$/,
+            handler: 'handleForum'
+        },
+        // Default handler for pages
+        default: 'handlePage'
+    },
+    POST: {
+        api: {
+            pattern: /^\/api\//,
+            handler: 'handleApi'
+        },
+        // Add more POST routes as needed
+        default: null
+    }
+};
+
+// Route matcher function
+function findRoute(method, url) {
+    const methodRoutes = routes[method];
+    if (!methodRoutes) return null;
+
+    // Check each defined route pattern
+    for (const [key, route] of Object.entries(methodRoutes)) {
+        if (key === 'default') continue;
+        if (route.pattern.test(url)) {
+            return route.handler;
+        }
+    }
+
+    // Return default handler if no specific route matches
+    return methodRoutes.default;
+}
 
 async function handleRequest(req, res) {
     console.log(`${req.method} request received for: ${req.url}`);
 
-    const methodHandlers = handlers[req.method];
-    if (!methodHandlers) {
-        res.writeHead(405);
-        res.end('Method Not Allowed');
-        return;
-    }
-
     try {
-        // route based on URL pattern
-        if (req.url.match(/\.(css|js|png|jpg|gif|ico)$/)) {
-            await methodHandlers.handleStaticFile(req, res);
+        // Get handlers for the HTTP method
+        const methodHandlers = handlers[req.method];
+        if (!methodHandlers) {
+            res.writeHead(405);
+            res.end('Method Not Allowed');
+            return;
         }
-        else if (req.url.startsWith('/partial/')) {
-            await methodHandlers.handlePartial(req, res);
+
+        // Find matching route handler
+        const handlerName = findRoute(req.method, req.url);
+        if (!handlerName) {
+            res.writeHead(404);
+            res.end('Not Found');
+            return;
         }
-        else if (req.url.startsWith('/api/')) {
-            await methodHandlers.handleApi(req, res);
-        }
-        else if (req.url.startsWith('/templates/')) {
-            await methodHandlers.handleTemplate(req, res);
-        }
-        else {
-            await methodHandlers.handlePage(req, res);
-        }
+
+        // Execute the handler
+        const handler = methodHandlers[handlerName];
+        await handler(req, res);
+
     } catch (error) {
         console.error('Request handling error:', error);
         res.writeHead(500);

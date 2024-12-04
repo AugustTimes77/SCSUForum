@@ -132,13 +132,16 @@ const PageHandlers = {
 
     async initializeForumPage() {
         console.log('Initializing forum page');
-        
+    
         try {
+            // Fetch all available forums from the server
             const forums = await ForumAPI.fetchForums();
             console.log('Fetched forums:', forums);
             
+            // Find the forum list container in the DOM
             const forumList = document.querySelector('.forum-category ul');
             if (forumList) {
+                // Create the HTML for each forum entry
                 forumList.innerHTML = forums.map(forum => `
                     <li>
                         <a href="/forum/${forum.forum_id}" 
@@ -152,27 +155,33 @@ const PageHandlers = {
                     </li>
                 `).join('');
                 
+                // Add click handlers for each forum link
                 document.querySelectorAll('.forum-link').forEach(link => {
                     link.addEventListener('click', async (e) => {
                         e.preventDefault();
                         const forumId = e.target.dataset.forumId;
                         
                         try {
+                            // Fetch both forum details and posts simultaneously
                             const [forum, posts] = await Promise.all([
                                 ForumAPI.fetchForumById(forumId),
                                 PostAPI.fetchPostsByForumId(forumId)
                             ]);
                             
+                            // Get and process the forum template
                             const response = await fetch('/templates/forumTemplate');
                             let template = await response.text();
                             
+                            // Replace placeholder text in the template
                             template = template
                                 .replace('FORUM NAME', forum.name)
                                 .replace('FORUM DESCRIPTION', forum.description);
                             
+                            // Update the page content and URL
                             document.querySelector('.body').innerHTML = template;
                             history.pushState({}, '', `/forum/${forumId}`);
                             
+                            // Display the forum's posts
                             PostAPI.displayPosts(posts);
                             
                         } catch (error) {
@@ -181,8 +190,107 @@ const PageHandlers = {
                         }
                     });
                 });
+    
+                // Add the CreatePostButton event listener using event delegation
+                document.addEventListener('click', async (e) => {
+                    if (e.target.id === 'CreatePostButton') {
+                        // Prevent multiple forms from being created
+                        if (document.querySelector('.post-form-container')) {
+                            return;
+                        }
+    
+                        // Create the post submission form HTML
+                        const formHTML = `
+                            <div class="post-form-container">
+                                <div class="post-item">
+                                    <h3>Create New Post</h3>
+                                    <form id="createPostForm" class="post-form">
+                                        <div class="form-group">
+                                            <label for="postTitle">Title:</label>
+                                            <input type="text" 
+                                                   id="postTitle" 
+                                                   name="title" 
+                                                   required
+                                                   class="form-control">
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="postContent">Content:</label>
+                                            <textarea id="postContent" 
+                                                      name="content" 
+                                                      required
+                                                      class="form-control"
+                                                      rows="4"></textarea>
+                                        </div>
+                                        <div class="button-group">
+                                            <button type="submit" class="submit-btn">Submit Post</button>
+                                            <button type="button" class="display-btn" id="cancelPost">Cancel</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        `;
+    
+                        // Insert the form above the posts section
+                        const gdSection = document.querySelector('.gd-section');
+                        gdSection.insertAdjacentHTML('beforebegin', formHTML);
+    
+                        // Add cancel button functionality
+                        document.getElementById('cancelPost').addEventListener('click', () => {
+                            document.querySelector('.post-form-container').remove();
+                        });
+    
+                        // Handle form submission
+                        const createPostForm = document.getElementById('createPostForm');
+                        createPostForm.addEventListener('submit', async (e) => {
+                            e.preventDefault();
+                            
+                            // Get the submit button first
+                            const submitButton = createPostForm.querySelector('button[type="submit"]');
+                            const originalButtonText = submitButton.textContent; // Store the original text
+                            
+                            try {
+                                // Get forum_id from URL
+                                const pathParts = window.location.pathname.split('/');
+                                const forum_id = parseInt(pathParts[pathParts.length - 1]);
+
+                                // Prepare form data
+                                const formData = {
+                                    title: document.getElementById('postTitle').value,
+                                    content: document.getElementById('postContent').value,
+                                    forum_id: forum_id,
+                                    user_id: 1  // This should come from your auth system
+                                };
+
+                                // Update button state
+                                submitButton.textContent = 'Creating...';
+                                submitButton.disabled = true;
+
+                                // Submit the post
+                                const result = await ForumAPI.createPost(formData);
+                                
+                                if (result.success) {
+                                    const posts = await PostAPI.fetchPostsByForumId(forum_id);
+                                    PostAPI.displayPosts(posts);
+                                    document.querySelector('.post-form-container').remove();
+                                }
+                            } catch (error) {
+                                console.error('Error submitting post:', error);
+                                const errorDiv = document.createElement('div');
+                                errorDiv.className = 'error-message';
+                                errorDiv.textContent = 'Failed to create post. Please try again.';
+                                createPostForm.insertAdjacentElement('afterbegin', errorDiv);
+                            } finally {
+                                // Reset button state using the stored original text
+                                submitButton.textContent = originalButtonText;
+                                submitButton.disabled = false;
+                            }
+                        });
+                    }
+                });
             }
+    
         } catch (error) {
+            // Handle any errors that occur during forum page initialization
             console.error('Error initializing forum page:', error);
             const forumSection = document.querySelector('.forum-section');
             if (forumSection) {

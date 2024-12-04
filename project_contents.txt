@@ -15,6 +15,7 @@
 │   ├── Forum.js
 │   ├── message.js
 │   └── User.js
+├── package-lock.json
 ├── project_contents.txt
 ├── public
 │   ├── css
@@ -44,9 +45,11 @@
     └── templates
         └── forumTemplate.html
 
-14 directories, 31 files
+14 directories, 32 files
 === FILE CONTENTS ===
+=== ./.gitignore ===
 
+node_modules/
 === ./app.js ===
 
 /**
@@ -68,9 +71,6 @@ async function applicationHandler(req, res) {
 }
 
 module.exports = applicationHandler;
-=== ./project_contents.txt ===
-
-
 === ./config/database.js ===
 
 /**
@@ -104,288 +104,529 @@ pool.getConnection((err, connection) => {
 module.exports = {
     pool: pool.promise()
 };
-=== ./server.js ===
+=== ./controllers/handlers/deleteHandlers.js ===
+
+
+=== ./controllers/handlers/getHandlers.js ===
 
 /**
- * server.js
- * Main server entry point. Initializes HTTP server and starts listening for requests.
+ * controllers/handlers/getHandlers.js
+ * Handles all GET requests
  */
 
-const http = require('http');
-const app = require('./app');
-
-const port = process.env.PORT || 80;
-const server = http.createServer(app);
-
-server.listen(port, () => {
-    console.log(`Server running on port ${port}`);
-    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`Server time: ${new Date().toISOString()}`);
-});
-=== ./utils/mimeTypes.js ===
-
-// utils/mimeTypes.js - MIME type mapping
-
-const mimeTypes = {
-    '.html': 'text/html',
-    '.css': 'text/css',
-    '.js': 'text/javascript',
-    '.json': 'application/json',
-    '.png': 'image/png',
-    '.jpg': 'image/jpeg',
-    '.gif': 'image/gif',
-};
-
-module.exports = mimeTypes;
-=== ./utils/pathHandler.js ===
-
-/**
- * utils/pathHandler.js
- * Handles path resolution and validation
- */
 const path = require('path');
-
-const pathHandler = {
-    resolvePath(basePath, ...paths) {
-        const fullPath = path.join(basePath, ...paths);
-        // Security check to prevent directory traversal
-        if (!fullPath.startsWith(basePath)) {
-            throw new Error('Invalid path');
-        }
-        return fullPath;
-    },
-
-    getExtension(filepath) {
-        return path.extname(filepath).toLowerCase();
-    }
-};
-
-module.exports = pathHandler;
-=== ./utils/responseHandler.js ===
-
-/**
- * utils/responseHelper.js
- * Standardizes HTTP responses
- */
-const responseHelper = {
-    sendJson(res, data, status = 200) {
-        res.writeHead(status, {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*'
-        });
-        res.end(JSON.stringify(data));
-    },
-
-    sendError(res, error, status = 500) {
-        res.writeHead(status, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({
-            error: error.message || 'Internal Server Error',
-            status
-        }));
-    },
-
-    sendFile(res, content, contentType) {
-        res.writeHead(200, { 'Content-Type': contentType });
-        res.end(content);
-    }
-};
-
-module.exports = responseHelper;
-=== ./services/templateService.js ===
-
-/**
- * services/templateService.js
- * Handles HTML template loading and processing
- */
-
 const fs = require('fs').promises;
-const path = require('path');
+const mimeTypes = require('../../utils/mimeTypes');
+const templateService = require('../../services/templateService');
+const User = require('../../models/User');
+const Forum = require('../../models/Forum');
 
-class TemplateService {
-    constructor() {
-        this.viewsDir = path.join(__dirname, '../views');
-        this.partialsDir = path.join(this.viewsDir, 'partials');
-        this.pagesDir = path.join(this.viewsDir, 'pages');
-        this.templatesDir = path.join(this.viewsDir, 'templates');  // Add this line
+const getHandlers = {
+    async handleStaticFile(req, res) {
+        try {
+            // Handle favicon.ico request
+            if (req.url === '/favicon.ico') {
+                res.writeHead(204); // No content
+                res.end();
+                return;
+            }
+
+            const filePath = path.join(__dirname, '../../public', req.url);
+            const extname = path.extname(filePath).toLowerCase();
+            const contentType = mimeTypes[extname] || 'application/octet-stream';
+
+            const content = await fs.readFile(filePath);
+            res.writeHead(200, { 'Content-Type': contentType });
+            res.end(content);
+        } catch (error) {
+            res.writeHead(404);
+            res.end('File not found');
+        }
+    },
+
+    async handlePartial(req, res) {
+        try {
+            const requestedPath = req.url.split('/partial/')[1];
+            console.log('Loading partial/template:', requestedPath);
+            
+            let content;
+            // Check if it's a forum template request
+            if (requestedPath === 'forumTemplate') {
+                content = await fs.readFile(path.join(__dirname, '../../views/templates/forumTemplate.html'), 'utf8');
+            } else {
+                // Handle regular partials
+                content = await fs.readFile(path.join(__dirname, '../../views/partials', `${requestedPath}.html`), 'utf8');
+            }
+            
+            res.writeHead(200, { 'Content-Type': 'text/html' });
+            res.end(content);
+        } catch (err) {
+            console.error('Error loading partial/template:', err);
+            res.writeHead(404);
+            res.end('Partial or template not found');
+        }
+    },
+
+    async handlePage(req, res) {
+        try {
+            let pageName = req.url === '/' ? 'index' : req.url.match(/^\/([^/]+)/)[1];
+            let pageContent;
+
+            if (pageName === 'index') {
+                pageContent = await fs.readFile(path.join(__dirname, '../../views/pages/index.html'), 'utf8');
+            } else {
+                const template = templateService.getTemplateHTML();
+                const content = await templateService.readPageContent(pageName);
+                pageContent = template.replace('{{content}}', content);
+            }
+
+            res.writeHead(200, { 'Content-Type': 'text/html' });
+            res.end(pageContent);
+        } catch (error) {
+            const notFoundContent = await fs.readFile(path.join(__dirname, '../../views/pages/404.html'), 'utf8');
+            res.writeHead(404, { 'Content-Type': 'text/html' });
+            res.end(notFoundContent);
+        }
+    },
+
+    async handleApi(req, res) {
+        try {
+            if (req.url === '/api/users') {
+                const users = await User.findAll();
+                res.writeHead(200, { 
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                });
+                res.end(JSON.stringify(users));
+            }
+            else if (req.url === '/api/forums') {
+                const forums = await Forum.findAll();
+                res.writeHead(200, { 
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                });
+                res.end(JSON.stringify(forums));
+            }
+            else if (req.url.match(/^\/api\/forums\/posts\/\d+$/)) {
+                const forumId = req.url.split('/').pop();
+                const posts = await Forum.findPostsById(forumId);
+                res.writeHead(200, { 
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                });
+                res.end(JSON.stringify(posts));
+            }
+            else if (req.url.match(/^\/api\/forums\/\d+$/)) {
+                const forumId = req.url.split('/').pop();
+                const forum = await Forum.findById(forumId);
+                
+                if (!forum) {
+                    res.writeHead(404, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ error: 'Forum not found' }));
+                    return;
+                }
+    
+                res.writeHead(200, { 
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                });
+                res.end(JSON.stringify(forum));
+            } else {
+                res.writeHead(404, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'API endpoint not found' }));
+            }
+        } catch (error) {
+            if (!res.headersSent) {
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Server error' }));
+            }
+        }
+    },
+
+    async handleForum(req, res) {
+        try {
+            const forumIdentifier = req.url.split('/forum/')[1];
+            let forum;
+
+            if (/^\d+$/.test(forumIdentifier)) {
+                forum = await Forum.findById(forumIdentifier);
+            } else {
+                forum= await Forum.findByName(decodeURIComponent(forumIdentifier));
+            }
+
+            if (!forum) {
+                
+                const notFoundContent = await fs.readFile(
+                    path.join(__dirname, '../../views/pages/404.html'), 
+                    'utf8'
+                );
+                res.writeHead(404, { 'Content-Type': 'text/html' });
+                res.end(notFoundContent);
+                return;
+            }
+
+            const posts = await Forum.findPostsById(forum.forum_id);
+            
+            const template = await templateService.readTemplateContent('forumTemplate');
+            const processedTemplate = template
+                .replace('FORUM NAME', forum.name)
+                .replace('FORUM DESCRIPTION', forum.description);
+
+            res.writeHead(200, { 'Content-Type': 'text/html' });
+            res.end(processedTemplate);
+
+        } catch (error) {
+            console.error('Error handling forum request:', error);
+            res.writeHead(500, { 'Content-Type': 'text/html' });
+            res.end('Internal Server Error');
+        }
+    },
+
+    async handleTemplate(req, res) {
+        try {
+            const templateName = req.url.split('/templates/')[1];
+            console.log('Loading template:', templateName);
+            const content = await fs.readFile(
+                path.join(__dirname, '../../views/templates', `${templateName}.html`),
+                'utf8'
+            );
+            
+            res.writeHead(200, { 'Content-Type': 'text/html' });
+            res.end(content);
+        } catch (err) {
+            console.error('Error loading template:', err);
+            res.writeHead(404);
+            res.end('Template not found');
+        }
+    }
+};
+
+module.exports = getHandlers;
+=== ./controllers/handlers/index.js ===
+
+/**
+ * controllers/handlers/index.js
+ * Registry of HTTP method handlers
+ */
+
+const getHandlers = require('./getHandlers');
+const postHandlers = require('./postHandlers');
+
+module.exports = {
+    GET: getHandlers,
+    POST: postHandlers
+};
+=== ./controllers/handlers/postHandlers.js ===
+
+/**
+ * controllers/handlers/postHandlers.js
+ * Handles all POST requests with separate handlers for different endpoints
+ */
+
+const { pool } = require('../../config/database');
+
+const User = require('../../models/User');
+const Forum = require('../../models/Forum');
+
+// Helper to parse request body
+const parseBody = (req) => {
+    return new Promise((resolve, reject) => {
+        let body = '';
+        req.on('data', chunk => {
+            body += chunk.toString();
+        });
+        req.on('end', () => {
+            try {
+                resolve(JSON.parse(body));
+            } catch (error) {
+                reject(new Error('Invalid JSON'));
+            }
+        });
+    });
+};
+
+const postHandlers = {
+    // User-related handlers
+    async handleCreateUser(req, res) {
+        try {
+            const userData = await parseBody(req);
+            const newUser = await User.create(userData);
+            
+            res.writeHead(200, { 
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            });
+            res.end(JSON.stringify({ 
+                message: 'User created successfully',
+                userId: newUser.insertId 
+            }));
+        } catch (error) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Error creating user' }));
+        }
+    },
+
+    // Forum post-related handlers
+    async handleCreateForumPost(req, res) {
+        try {
+            const postData = await parseBody(req);
+            const newPost = await Forum.createPost(postData);
+            
+            res.writeHead(200, { 
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            });
+            res.end(JSON.stringify({ 
+                message: 'Post created successfully',
+                postId: newPost.insertId 
+            }));
+        } catch (error) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Error creating post' }));
+        }
+    },
+
+    // Main API router
+    async handleApi(req, res) {
+        try {
+            // Define API routes
+            const routes = {
+                '/api/users/create': this.handleCreateUser,
+                '/api/forums/posts/create': this.handleCreateForumPost
+            };
+
+            const handler = routes[req.url];
+            if (handler) {
+                await handler.call(this, req, res);
+            } else {
+                res.writeHead(404, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'API endpoint not found' }));
+            }
+        } catch (error) {
+            console.error('Error in handleApi:', error);
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Internal server error' }));
+        }
+    },
+
+    async handleCreateForumPost(req, res) {
+        try {
+            const postData = await parseBody(req);
+            
+            // Validate required fields
+            if (!postData.title || !postData.content || !postData.forum_id || !postData.user_id) {
+                res.writeHead(400, { 
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                });
+                res.end(JSON.stringify({ 
+                    error: 'Missing required fields',
+                    required: ['title', 'content', 'forum_id', 'user_id']
+                }));
+                return;
+            }
+
+            const result = await Forum.createPost(postData);
+            
+            res.writeHead(201, { 
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            });
+            res.end(JSON.stringify({
+                success: true,
+                message: 'Post created successfully',
+                post: result
+            }));
+        } catch (error) {
+            console.error('Error in handleCreateForumPost:', error);
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ 
+                error: 'Failed to create post',
+                message: error.message
+            }));
+        }
     }
 
+};
 
-    async readPartial(partialName) {
-        return await fs.readFile(path.join(this.partialsDir, `${partialName}.html`), 'utf8');
+module.exports = postHandlers;
+=== ./controllers/requestController.js ===
+
+// controllers/requestController.js
+const handlers = require('./handlers');
+
+// Route definitions mapping URLs to handler functions
+const routes = {
+    GET: {
+        static: {
+            pattern: /\.(css|js|png|jpg|gif|ico)$/,
+            handler: 'handleStaticFile'
+        },
+        partial: {
+            pattern: /^\/partial\//,
+            handler: 'handlePartial'
+        },
+        api: {
+            pattern: /^\/api\//,
+            handler: 'handleApi'
+        },
+        template: {
+            pattern: /^\/templates\//,
+            handler: 'handleTemplate'
+        },
+        forum: {
+            pattern: /^\/forum\/([^/]+)$/,
+            handler: 'handleForum'
+        },
+        // Default handler for pages
+        default: 'handlePage'
+    },
+    POST: {
+        api: {
+            pattern: /^\/api\//,
+            handler: 'handleApi'
+        },
+        // Add more POST routes as needed
+        default: null
+    }
+};
+
+// Route matcher function
+function findRoute(method, url) {
+    const methodRoutes = routes[method];
+    if (!methodRoutes) return null;
+
+    // Check each defined route pattern
+    for (const [key, route] of Object.entries(methodRoutes)) {
+        if (key === 'default') continue;
+        if (route.pattern.test(url)) {
+            return route.handler;
+        }
     }
 
-    async readPageContent(pageName) {
-        return await fs.readFile(path.join(this.pagesDir, `${pageName}.html`), 'utf8');
-    }
+    // Return default handler if no specific route matches
+    return methodRoutes.default;
+}
 
-    async readTemplateContent(templateName) {
-        return await fs.readFile(path.join(this.templatesDir, `${templateName}.html`), 'utf8');
-    }
+async function handleRequest(req, res) {
+    console.log(`${req.method} request received for: ${req.url}`);
 
-    getTemplateHTML() {
-        return `
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SCSU Student Forum</title>
-    <link rel="stylesheet" href="/css/styles.css">
-</head>
-<body>
-    <div id="header-container"></div>
-    <div class="body">
-        {{content}}
-    </div>
-    <div id="footer-container"></div>
-    <script src="/js/main.js"></script>
-    <script src="/js/api.js"></script>
-</body>
-</html>`;
+    try {
+        // Get handlers for the HTTP method
+        const methodHandlers = handlers[req.method];
+        if (!methodHandlers) {
+            res.writeHead(405);
+            res.end('Method Not Allowed');
+            return;
+        }
+
+        // Find matching route handler
+        const handlerName = findRoute(req.method, req.url);
+        if (!handlerName) {
+            res.writeHead(404);
+            res.end('Not Found');
+            return;
+        }
+
+        // Execute the handler
+        const handler = methodHandlers[handlerName];
+        await handler(req, res);
+
+    } catch (error) {
+        console.error('Request handling error:', error);
+        res.writeHead(500);
+        res.end('Internal Server Error');
     }
 }
 
-module.exports = new TemplateService();
-=== ./services/authServices.js ===
+module.exports = { handleRequest };
+=== ./models/Forum.js ===
 
+// models/Forum.js
 
-=== ./views/pages/account.html ===
+const db = require('../config/database');
 
-<section class="account-section">
-    <h2>Account Settings</h2>
-    <div class="account-form">
-        <form id="createAccountForm">
-            <div class="form-group">
-                <label for="username">Username:</label>
-                <input type="text" id="username" name="username" required>
-            </div>
+class Forum {
+    static async findAll() {
+        try {
+            console.log('Attempting to fetch all forums');
+            const [rows] = await db.pool.query('SELECT forum_id, name, description FROM forums');
+            console.log('Successfully fetched forums:', rows);
+            return rows;
+        } catch (error) {
+            console.error('Database error in Forum.findAll:', error.message);
+            throw new Error(`Database error in findAll: ${error.message}`);
+        }
+    }
 
-            <div class="form-group">
-                <label for="password">Password:</label>
-                <input type="password" id="password" name="password" required>
-            </div>
+    static async findById(id) {
+        try {
+            console.log('Attempting to fetch forum with id:', id);
+            const [rows] = await db.pool.query(
+                'SELECT forum_id, name, description FROM forums WHERE forum_id = ?', 
+                [id]
+            );
+            console.log('Forum query result:', rows[0]);
+            return rows[0];
+        } catch (error) {
+            console.error('Database error in Forum.findById:', error.message);
+            throw new Error(`Database error in findById: ${error.message}`);
+        }
+    }
 
-            <div class="form-group">
-                <label for="email">Email:</label>
-                <input type="email" id="email" name="email" required>
-            </div>
+    static async findPostsById(id) {
+        try {
+            console.log('Attempting to fetch posts with forum id:', id);
+            const [rows] = await db.pool.query('SELECT title, content, created_at FROM posts WHERE forum_id = ?',
+                [id]
+            );
+            return rows;
+        } catch (error) {
+            throw new Error(`Database error in findPostsById: ${error.message}`)
+        }
+    }
 
-            <button type="submit" class="submit-btn">Create Account</button>
-        </form>
-        
-        <button id="displaydata" class="display-btn">Display Users</button>
+    static async findByName(name) {
+        try {
+            console.log('Attempting to fetch forum with name:', name);
+            const [rows] = await db.pool.query(
+                'SELECT forum_id, name, description FROM forums WHERE LOWER(name) = LOWER(?)', 
+                [name.replace(/_/g, ' ')] // Replace underscores with spaces
+            );
+            console.log('Forum query result:', rows[0]);
+            return rows[0];
+        } catch (error) {
+            console.error('Database error in Forum.findByName:', error.message);
+            throw new Error(`Database error in findByName: ${error.message}`);
+        }
+    }
 
-        <div class="forum-section">Hello there</div>
-    </div>
-</section>
-=== ./views/pages/forums.html ===
+    static async createPost(postData) {
+        try {
+            // Remove post_id from the query since it's auto-incrementing
+            const query = 'INSERT INTO posts (user_id, forum_id, title, content, created_at) VALUES (?, ?, ?, ?, NOW())';
+            const values = [
+                postData.user_id,
+                postData.forum_id,
+                postData.title,
+                postData.content
+            ];
 
-<section class="forum-section">
-    <h2>Forums</h2>
-    <div class="forum-list">
-        <div class="forum-category">
-            <h3>Academic Discussions</h3>
-            <ul>
-                <li>
-                    <a href="#" class="forum-link">General Discussion</a>
-                    <p class="forum-description">Chat about anything related to SCSU</p>
-                </li>
-                <li>
-                    <a href="#" class="forum-title">Course Registration</a>
-                    <p class="forum-description">Discuss class registration and scheduling</p>
-                </li>
-                <li>
-                    <a href="#" class="forum-title">Study Groups</a>
-                    <p class="forum-description">Find and join study groups</p>
-                </li>
-            </ul>
-        </div>
-    </div>
-</section>
-=== ./views/pages/messages.html ===
+            const [result] = await db.pool.query(query, values);
+            return {
+                success: true,
+                post_id: result.insertId,
+                ...postData,
+                created_at: new Date()
+            };
+        } catch (error) {
+            console.error('Database error in createPost:', error);
+            throw new Error(`Database error in createPost: ${error.message}`);
+        }
+    }
+}
 
-<section class="messages-section">
-    <h2>Messages</h2>
-    <div class="messages-container">
-        <div class="message-list">
-            <p>Your messages will appear here</p>
-        </div>
-    </div>
-</section>
-=== ./views/pages/404.html ===
-
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>404 - Page Not Found</title>
-    <link rel="stylesheet" href="css/styles.css">
-</head>
-<body>
-    <div class="container">
-        <h1>404 - Page Not Found</h1>
-        <p>Oops! The page you're looking for doesn't exist.</p>
-        <p><a href="/">Go back to homepage</a></p>
-    </div>
-</body>
-</html>
-=== ./views/pages/index.html ===
-
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SCSU Student Forum</title>
-    <link rel="stylesheet" href="css/styles.css">
-</head>
-<body>
-    <div id="header-container"></div>
-
-    <div class="body">
-        <section class="forum-section">
-            <h2>Welcome to the SCSU Forums!</h2>
-        </section>
-    </div>
-
-    <div id="footer-container"></div>
-    <script src="/js/main.js"></script>
-    <script src="/js/api.js"></script>
-</body>
-</html>
-=== ./views/partials/footer.html ===
-
-<footer>
-    <p>&copy; 2024 SCSU Student Forum</p>
-</footer>
-=== ./views/partials/header.html ===
-
-
-<header class="header">
-    <div class="container">
-        <h1><a href="/" class="home-link">SCSU Student Forum</a></h1>
-        <nav>
-            <ul>
-                <li><a href="/forums">Forums</a></li>
-                <li><a href="/messages">Messages</a></li>
-                <li><a href="/account">Account</a></li>
-            </ul>
-        </nav>
-    </div>
-</header>
-=== ./views/templates/forumTemplate.html ===
-
-<div class="body">
-    <h2 id="forum-title">FORUM NAME</h2>
-    <h3 id="forum-description">FORUM DESCRIPTION</h3>
-    <section class="gd-section">
-        
-    </section>
-</section>
-=== ./models/message.js ===
-
-
+module.exports = Forum;
 === ./models/User.js ===
 
 /**
@@ -424,57 +665,21 @@ class User {
 }
 
 module.exports = User;
-=== ./models/Forum.js ===
+=== ./models/message.js ===
 
-// models/Forum.js
 
-const db = require('../config/database');
+=== ./project_contents.txt ===
 
-class Forum {
-    static async findAll() {
-        try {
-            console.log('Attempting to fetch all forums');
-            const [rows] = await db.pool.query('SELECT forum_id, name, description FROM forums');
-            console.log('Successfully fetched forums:', rows);
-            return rows;
-        } catch (error) {
-            console.error('Database error in Forum.findAll:', error.message);
-            throw new Error(`Database error in findAll: ${error.message}`);
-        }
-    }
 
-    static async findById(id) {
-        try {
-            console.log('Attempting to fetch forum with id:', id);
-            const [rows] = await db.pool.query(
-                'SELECT forum_id, name, description FROM forums WHERE forum_id = ?', 
-                [id]
-            );
-            console.log('Forum query result:', rows[0]);
-            return rows[0];
-        } catch (error) {
-            console.error('Database error in Forum.findById:', error.message);
-            throw new Error(`Database error in findById: ${error.message}`);
-        }
-    }
-
-    static async findPostsById(id) {
-        try {
-            console.log('Attempting to fetch posts with forum id:', id);
-            const [rows] = await db.pool.query('SELECT title. content, created_at FROM posts WHERE forum_id = ?',
-                [id]
-            );
-            return rows;
-        } catch (error) {
-            throw new Error(`Database error in findPostsById: ${error.message}`)
-        }
-    }
-}
-
-module.exports = Forum;
 === ./public/css/styles.css ===
 
 /* Base styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
 body {
     font-family: Arial, sans-serif;
     margin: 0;
@@ -482,6 +687,7 @@ body {
     display: flex;
     flex-direction: column;
     background-color: #f3f4f6;
+    overflow-x: hidden; /* Prevent horizontal scroll */
 }
 
 /* Header */
@@ -495,8 +701,10 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    max-width: 1200px;
+    max-width: 1800px;
     margin: 0 auto;
+    padding: 0 2rem;
+    box-sizing: border-box; /* Added to prevent overflow */
 }
 
 .home-link {
@@ -521,8 +729,10 @@ body {
 .body {
     flex: 1;
     padding: 2rem;
-    max-width: 1200px;
+    max-width: 1800px;
     margin: 0 auto;
+    width: 95%;
+    box-sizing: border-box; /* Added to prevent overflow */
 }
 
 /* Forum section */
@@ -532,24 +742,113 @@ body {
     padding: 1.5rem;
     margin-bottom: 2rem;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    width: 100%;
+    box-sizing: border-box; /* Added to prevent overflow */
 }
 
-/* TEMPLATES -- by Tony */
+/* Forum body - expanded layout */
+.forum-body {
+    width: 100%;
+    max-width: 100%;
+    margin: 0 auto;
+    box-sizing: border-box; /* Added to prevent overflow */
+}
 
+/* Forum category styling */
+.forum-category ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    width: 100%;
+}
+
+.forum-category li {
+    margin-bottom: 1rem;
+    padding: 1rem;
+    background-color: #f8f9fa;
+    border-radius: 0.5rem;
+    transition: background-color 0.2s;
+}
+
+.forum-category li:hover {
+    background-color: #e9ecef;
+}
+
+.forum-link {
+    color: #003399;
+    text-decoration: none;
+    font-weight: bold;
+    font-size: 1.1rem;
+}
+
+.forum-description {
+    margin: 0.5rem 0 0 0;
+    color: #666;
+}
+
+/* Forum posts section */
 .gd-section {
-
-	background-color: #D1F6FF;
+    background-color: #D1F6FF;
     border-radius: 0.25rem;
     box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
-    padding: 1.5rem;
+    padding: 2rem;
     margin-bottom: 2rem;
-    align-content: center;
-	text-align: center;
+    width: 100%;
+    box-sizing: border-box; /* Added to prevent overflow */
+    border-style: ridge;
+    border-width: 3px;
+}
 
-	/* Setting border properties */
-	border-style: ridge;
-	border-width: 3px;
+/* Post items styling */
+.post-item {
+    background-color: white;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    width: 100%;
+    box-sizing: border-box; /* Added to prevent overflow */
+}
 
+.post-item h3 {
+    margin-top: 0;
+    color: #003399;
+}
+
+.post-item p {
+    color: #333;
+    line-height: 1.6;
+}
+
+.post-item small {
+    color: #666;
+    display: block;
+    margin-top: 1rem;
+}
+
+.post-item .main-post{
+    list-style: none;
+}
+
+.post-item .sub-post{
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    gap: 1rem;
+}
+
+.post-item button {
+    max-height: min-content;
+}
+
+/* Remove default list styling for posts */
+.gd-section ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    width: 100%;
+    
 }
 
 /* Account form */
@@ -557,6 +856,10 @@ body {
     max-width: 400px;
     margin: 20px auto;
     padding: 20px;
+    background-color: white;
+    border-radius: 0.5rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    box-sizing: border-box; /* Added to prevent overflow */
 }
 
 .form-group {
@@ -566,6 +869,8 @@ body {
 .form-group label {
     display: block;
     margin-bottom: 5px;
+    color: #333;
+    font-weight: 500;
 }
 
 .form-group input {
@@ -573,6 +878,13 @@ body {
     padding: 8px;
     border: 1px solid #ddd;
     border-radius: 4px;
+    box-sizing: border-box;
+}
+
+.form-group input:focus {
+    border-color: #003399;
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(0, 51, 153, 0.1);
 }
 
 .submit-btn, .display-btn {
@@ -584,6 +896,32 @@ body {
     cursor: pointer;
     width: 100%;
     margin-top: 10px;
+    font-size: 1rem;
+    transition: background-color 0.2s;
+}
+
+.submit-btn:hover, .display-btn:hover {
+    background-color: #002266;
+}
+
+/* Messages section */
+.messages-section {
+    background-color: white;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    width: 100%;
+    box-sizing: border-box; /* Added to prevent overflow */
+}
+
+.messages-container {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.message-list {
+    padding: 1rem;
 }
 
 /* Footer */
@@ -593,6 +931,64 @@ footer {
     text-align: center;
     padding: 1rem;
     margin-top: auto;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1200px) {
+    .body {
+        width: 90%;
+        padding: 1rem;
+    }
+    
+    .header .container {
+        padding: 0 1rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .body {
+        width: 95%;
+        padding: 0.5rem;
+    }
+    
+    .gd-section {
+        padding: 1rem;
+    }
+    
+    .header .container {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .header nav ul {
+        margin-top: 1rem;
+        justify-content: center;
+    }
+    
+    .account-form {
+        margin: 10px;
+        padding: 15px;
+    }
+}
+
+/* Error messages */
+.error-message {
+    color: #dc3545;
+    background-color: #f8d7da;
+    border: 1px solid #f5c6cb;
+    border-radius: 0.25rem;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+/* Success messages */
+.success-message {
+    color: #28a745;
+    background-color: #d4edda;
+    border: 1px solid #c3e6cb;
+    border-radius: 0.25rem;
+    padding: 1rem;
+    margin-bottom: 1rem;
 }
 === ./public/js/api.js ===
 
@@ -723,9 +1119,30 @@ const ForumAPI = {
             console.error('Error in fetchForumById:', error);
             throw error;
         }
+    },
+
+    async createPost(postData) {
+        try {
+            const response = await fetch('/api/forums/posts/create', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(postData)
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.message || 'Failed to create post');
+            }
+
+            const result = await response.json();
+            return result;
+        } catch (error) {
+            console.error('Error creating post:', error);
+            throw error;
+        }
     }
-
-
 };
 
 // post related API calls
@@ -766,16 +1183,23 @@ const PostAPI = {
         } else {
             posts.forEach(post => {
                 contentDiv.innerHTML += `
-                    <li class="post-item">
-                        <h3>${post.title}</h3>
-                        <p>${post.content}</p>
-                        <small>Posted on: ${new Date(post.created_at).toLocaleDateString()}</small>
-                    </li>`;
+                    <div class="post-item">
+                        <li class="main-post">
+                            <h3>${post.title}</h3>
+                            <p>${post.content}</p>
+                        </li>
+                        <li class="sub-post">
+                            <small>Posted on: ${new Date(post.created_at).toLocaleDateString()}</small>
+                            <button>Comment</button>
+                        </li>
+                    </div>`;
             });
         }
         
         contentDiv.innerHTML += '</ul>';
-    }
+    },
+
+
 };
 
 // Message-related API calls (placeholder for future)
@@ -918,13 +1342,16 @@ const PageHandlers = {
 
     async initializeForumPage() {
         console.log('Initializing forum page');
-        
+    
         try {
+            // Fetch all available forums from the server
             const forums = await ForumAPI.fetchForums();
             console.log('Fetched forums:', forums);
             
+            // Find the forum list container in the DOM
             const forumList = document.querySelector('.forum-category ul');
             if (forumList) {
+                // Create the HTML for each forum entry
                 forumList.innerHTML = forums.map(forum => `
                     <li>
                         <a href="/forum/${forum.forum_id}" 
@@ -938,26 +1365,34 @@ const PageHandlers = {
                     </li>
                 `).join('');
                 
-                // Add click handlers for forum links
+                // Add click handlers for each forum link
                 document.querySelectorAll('.forum-link').forEach(link => {
                     link.addEventListener('click', async (e) => {
                         e.preventDefault();
                         const forumId = e.target.dataset.forumId;
                         
                         try {
-                            const forum = await ForumAPI.fetchForumById(forumId);
+                            // Fetch both forum details and posts simultaneously
+                            const [forum, posts] = await Promise.all([
+                                ForumAPI.fetchForumById(forumId),
+                                PostAPI.fetchPostsByForumId(forumId)
+                            ]);
+                            
+                            // Get and process the forum template
                             const response = await fetch('/templates/forumTemplate');
                             let template = await response.text();
                             
+                            // Replace placeholder text in the template
                             template = template
                                 .replace('FORUM NAME', forum.name)
                                 .replace('FORUM DESCRIPTION', forum.description);
                             
+                            // Update the page content and URL
                             document.querySelector('.body').innerHTML = template;
                             history.pushState({}, '', `/forum/${forumId}`);
-                
-                            // Load posts after the template is loaded
-                            await PostAPI.fetchPostsByForumId(forumId);
+                            
+                            // Display the forum's posts
+                            PostAPI.displayPosts(posts);
                             
                         } catch (error) {
                             console.error('Error loading forum:', error);
@@ -965,8 +1400,107 @@ const PageHandlers = {
                         }
                     });
                 });
+    
+                // Add the CreatePostButton event listener using event delegation
+                document.addEventListener('click', async (e) => {
+                    if (e.target.id === 'CreatePostButton') {
+                        // Prevent multiple forms from being created
+                        if (document.querySelector('.post-form-container')) {
+                            return;
+                        }
+    
+                        // Create the post submission form HTML
+                        const formHTML = `
+                            <div class="post-form-container">
+                                <div class="post-item">
+                                    <h3>Create New Post</h3>
+                                    <form id="createPostForm" class="post-form">
+                                        <div class="form-group">
+                                            <label for="postTitle">Title:</label>
+                                            <input type="text" 
+                                                   id="postTitle" 
+                                                   name="title" 
+                                                   required
+                                                   class="form-control">
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="postContent">Content:</label>
+                                            <textarea id="postContent" 
+                                                      name="content" 
+                                                      required
+                                                      class="form-control"
+                                                      rows="4"></textarea>
+                                        </div>
+                                        <div class="button-group">
+                                            <button type="submit" class="submit-btn">Submit Post</button>
+                                            <button type="button" class="display-btn" id="cancelPost">Cancel</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        `;
+    
+                        // Insert the form above the posts section
+                        const gdSection = document.querySelector('.gd-section');
+                        gdSection.insertAdjacentHTML('beforebegin', formHTML);
+    
+                        // Add cancel button functionality
+                        document.getElementById('cancelPost').addEventListener('click', () => {
+                            document.querySelector('.post-form-container').remove();
+                        });
+    
+                        // Handle form submission
+                        const createPostForm = document.getElementById('createPostForm');
+                        createPostForm.addEventListener('submit', async (e) => {
+                            e.preventDefault();
+                            
+                            // Get the submit button first
+                            const submitButton = createPostForm.querySelector('button[type="submit"]');
+                            const originalButtonText = submitButton.textContent; // Store the original text
+                            
+                            try {
+                                // Get forum_id from URL
+                                const pathParts = window.location.pathname.split('/');
+                                const forum_id = parseInt(pathParts[pathParts.length - 1]);
+
+                                // Prepare form data
+                                const formData = {
+                                    title: document.getElementById('postTitle').value,
+                                    content: document.getElementById('postContent').value,
+                                    forum_id: forum_id,
+                                    user_id: 1  // This should come from your auth system
+                                };
+
+                                // Update button state
+                                submitButton.textContent = 'Creating...';
+                                submitButton.disabled = true;
+
+                                // Submit the post
+                                const result = await ForumAPI.createPost(formData);
+                                
+                                if (result.success) {
+                                    const posts = await PostAPI.fetchPostsByForumId(forum_id);
+                                    PostAPI.displayPosts(posts);
+                                    document.querySelector('.post-form-container').remove();
+                                }
+                            } catch (error) {
+                                console.error('Error submitting post:', error);
+                                const errorDiv = document.createElement('div');
+                                errorDiv.className = 'error-message';
+                                errorDiv.textContent = 'Failed to create post. Please try again.';
+                                createPostForm.insertAdjacentElement('afterbegin', errorDiv);
+                            } finally {
+                                // Reset button state using the stored original text
+                                submitButton.textContent = originalButtonText;
+                                submitButton.disabled = false;
+                            }
+                        });
+                    }
+                });
             }
+    
         } catch (error) {
+            // Handle any errors that occur during forum page initialization
             console.error('Error initializing forum page:', error);
             const forumSection = document.querySelector('.forum-section');
             if (forumSection) {
@@ -988,285 +1522,294 @@ const PageHandlers = {
 document.addEventListener('DOMContentLoaded', () => {
     App.init();
 });
-=== ./controllers/requestController.js ===
+=== ./server.js ===
 
 /**
- * controllers/requestController.js
- * Routes requests to appropriate handlers based on HTTP method
+ * server.js
+ * Main server entry point. Initializes HTTP server and starts listening for requests.
  */
 
-const handlers = require('./handlers');
+const http = require('http');
+const app = require('./app');
 
-async function handleRequest(req, res) {
-    console.log(`${req.method} request received for: ${req.url}`);
+const port = process.env.PORT || 80;
+const server = http.createServer(app);
 
-    const methodHandlers = handlers[req.method];
-    if (!methodHandlers) {
-        res.writeHead(405);
-        res.end('Method Not Allowed');
-        return;
+server.listen(port, () => {
+    console.log(`Server running on port ${port}`);
+    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`Server time: ${new Date().toISOString()}`);
+});
+=== ./services/authServices.js ===
+
+
+=== ./services/templateService.js ===
+
+/**
+ * services/templateService.js
+ * Handles HTML template loading and processing
+ */
+
+const fs = require('fs').promises;
+const path = require('path');
+
+class TemplateService {
+    constructor() {
+        this.viewsDir = path.join(__dirname, '../views');
+        this.partialsDir = path.join(this.viewsDir, 'partials');
+        this.pagesDir = path.join(this.viewsDir, 'pages');
+        this.templatesDir = path.join(this.viewsDir, 'templates');  // Add this line
     }
 
-    try {
-        // route based on URL pattern
-        if (req.url.match(/\.(css|js|png|jpg|gif|ico)$/)) {
-            await methodHandlers.handleStaticFile(req, res);
-        }
-        else if (req.url.startsWith('/partial/')) {
-            await methodHandlers.handlePartial(req, res);
-        }
-        else if (req.url.startsWith('/api/')) {
-            await methodHandlers.handleApi(req, res);
-        }
-        else if (req.url.startsWith('/templates/')) {
-            await methodHandlers.handleTemplate(req, res);
-        }
-        else {
-            await methodHandlers.handlePage(req, res);
-        }
-    } catch (error) {
-        console.error('Request handling error:', error);
-        res.writeHead(500);
-        res.end('Internal Server Error');
+
+    async readPartial(partialName) {
+        return await fs.readFile(path.join(this.partialsDir, `${partialName}.html`), 'utf8');
+    }
+
+    async readPageContent(pageName) {
+        return await fs.readFile(path.join(this.pagesDir, `${pageName}.html`), 'utf8');
+    }
+
+    async readTemplateContent(templateName) {
+        return await fs.readFile(path.join(this.templatesDir, `${templateName}.html`), 'utf8');
+    }
+
+    getTemplateHTML() {
+        return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SCSU Student Forum</title>
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <div id="header-container"></div>
+    <div class="body">
+        {{content}}
+    </div>
+    <div id="footer-container"></div>
+    <script src="/js/main.js"></script>
+    <script src="/js/api.js"></script>
+</body>
+</html>`;
     }
 }
 
-module.exports = { handleRequest };
-=== ./controllers/handlers/index.js ===
+module.exports = new TemplateService();
+=== ./utils/mimeTypes.js ===
 
-/**
- * controllers/handlers/index.js
- * Registry of HTTP method handlers
- */
+// utils/mimeTypes.js - MIME type mapping
 
-const getHandlers = require('./getHandlers');
-const postHandlers = require('./postHandlers');
-
-module.exports = {
-    GET: getHandlers,
-    POST: postHandlers
+const mimeTypes = {
+    '.html': 'text/html',
+    '.css': 'text/css',
+    '.js': 'text/javascript',
+    '.json': 'application/json',
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.gif': 'image/gif',
 };
-=== ./controllers/handlers/getHandlers.js ===
+
+module.exports = mimeTypes;
+=== ./utils/pathHandler.js ===
 
 /**
- * controllers/handlers/getHandlers.js
- * Handles all GET requests
+ * utils/pathHandler.js
+ * Handles path resolution and validation
  */
-
 const path = require('path');
-const fs = require('fs').promises;
-const mimeTypes = require('../../utils/mimeTypes');
-const templateService = require('../../services/templateService');
-const User = require('../../models/User');
-const Forum = require('../../models/Forum');
 
-const getHandlers = {
-    async handleStaticFile(req, res) {
-        try {
-            const filePath = path.join(__dirname, '../../public', req.url);
-            const extname = path.extname(filePath).toLowerCase();
-            const contentType = mimeTypes[extname] || 'application/octet-stream';
-
-            const content = await fs.readFile(filePath);
-            res.writeHead(200, { 'Content-Type': contentType });
-            res.end(content);
-        } catch (error) {
-            res.writeHead(404);
-            res.end('File not found');
+const pathHandler = {
+    resolvePath(basePath, ...paths) {
+        const fullPath = path.join(basePath, ...paths);
+        // Security check to prevent directory traversal
+        if (!fullPath.startsWith(basePath)) {
+            throw new Error('Invalid path');
         }
+        return fullPath;
     },
 
-    async handlePartial(req, res) {
-        try {
-            const requestedPath = req.url.split('/partial/')[1];
-            console.log('Loading partial/template:', requestedPath);
-            
-            let content;
-            // Check if it's a forum template request
-            if (requestedPath === 'forumTemplate') {
-                content = await fs.readFile(path.join(__dirname, '../../views/templates/forumTemplate.html'), 'utf8');
-            } else {
-                // Handle regular partials
-                content = await fs.readFile(path.join(__dirname, '../../views/partials', `${requestedPath}.html`), 'utf8');
-            }
-            
-            res.writeHead(200, { 'Content-Type': 'text/html' });
-            res.end(content);
-        } catch (err) {
-            console.error('Error loading partial/template:', err);
-            res.writeHead(404);
-            res.end('Partial or template not found');
-        }
-    },
-
-    async handlePage(req, res) {
-        try {
-            let pageName = req.url === '/' ? 'index' : req.url.match(/^\/([^/]+)/)[1];
-            let pageContent;
-
-            if (pageName === 'index') {
-                pageContent = await fs.readFile(path.join(__dirname, '../../views/pages/index.html'), 'utf8');
-            } else {
-                const template = templateService.getTemplateHTML();
-                const content = await templateService.readPageContent(pageName);
-                pageContent = template.replace('{{content}}', content);
-            }
-
-            res.writeHead(200, { 'Content-Type': 'text/html' });
-            res.end(pageContent);
-        } catch (error) {
-            const notFoundContent = await fs.readFile(path.join(__dirname, '../../views/pages/404.html'), 'utf8');
-            res.writeHead(404, { 'Content-Type': 'text/html' });
-            res.end(notFoundContent);
-        }
-    },
-
-    async handleApi(req, res) {
-        if (req.url === '/api/users') {
-            try {
-                const users = await User.findAll();
-                res.writeHead(200, { 
-                    'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': '*'
-                });
-                res.end(JSON.stringify(users));
-            } catch (error) {
-                res.writeHead(500, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ error: 'Database error' }));
-            }
-        }
-        else if (req.url === '/api/forums') {
-            try {
-                console.log('Forum model available:', !!Forum); // Add this debug line
-                console.log('Attempting to fetch forums');
-                const forums = await Forum.findAll();
-                console.log('Forums fetched:', forums);
-                
-                res.writeHead(200, { 
-                    'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': '*'
-                });
-                res.end(JSON.stringify(forums));
-            } catch (error) {
-                console.error('Error in /api/forums:', error);
-                res.writeHead(500, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ 
-                    error: 'Database error',
-                    details: error.message,
-                    stack: error.stack // Add stack trace for debugging
-                }));
-            }
-        }
-        if (req.url.match(/^\/api\/forums\/posts\/\d+$/)) {
-            try {
-                const forumId = req.url.split('/').pop();
-                const posts = await Forum.findPostsById(forumId);
-                
-                res.writeHead(200, { 
-                    'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': '*'
-                });
-                res.end(JSON.stringify(posts));
-            } catch (error) {
-                res.writeHead(500, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ error: 'Database error' }));
-            }
-        }
-        else if (req.url.match(/^\/api\/forums\/\d+$/)) {
-            try {
-                const forumId = req.url.split('/').pop();
-                const forum = await Forum.findById(forumId);
-                
-                if (!forum) {
-                    res.writeHead(404, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ error: 'Forum not found' }));
-                    return;
-                }
-    
-                res.writeHead(200, { 
-                    'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': '*'
-                });
-                res.end(JSON.stringify(forum));
-            } catch (error) {
-                res.writeHead(500, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ error: 'Database error' }));
-            }
-        } else {
-            res.writeHead(404, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'API endpoint not found' }));
-        }
-    },
-    async handleTemplate(req, res) {
-        try {
-            const templateName = req.url.split('/templates/')[1];
-            console.log('Loading template:', templateName);
-            
-            const content = await fs.readFile(
-                path.join(__dirname, '../../views/templates', `${templateName}.html`),
-                'utf8'
-            );
-            
-            res.writeHead(200, { 'Content-Type': 'text/html' });
-            res.end(content);
-        } catch (err) {
-            console.error('Error loading template:', err);
-            res.writeHead(404);
-            res.end('Template not found');
-        }
+    getExtension(filepath) {
+        return path.extname(filepath).toLowerCase();
     }
 };
 
-module.exports = getHandlers;
-=== ./controllers/handlers/postHandlers.js ===
+module.exports = pathHandler;
+=== ./utils/responseHandler.js ===
 
 /**
- * controllers/handlers/postHandlers.js
- * Handles all POST requests
+ * utils/responseHelper.js
+ * Standardizes HTTP responses
  */
+const responseHelper = {
+    sendJson(res, data, status = 200) {
+        res.writeHead(status, {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+        });
+        res.end(JSON.stringify(data));
+    },
 
-const User = require('../../models/User');
+    sendError(res, error, status = 500) {
+        res.writeHead(status, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+            error: error.message || 'Internal Server Error',
+            status
+        }));
+    },
 
-const postHandlers = {
-    async handleApi(req, res) {
-        if (req.url === '/api/users/create') {
-            let body = '';
-            req.on('data', chunk => {
-                body += chunk.toString();
-            });
-            
-            req.on('end', async () => {
-                try {
-                    const userData = JSON.parse(body);
-                    const newUser = await User.create(userData);
-                    
-                    res.writeHead(200, { 
-                        'Content-Type': 'application/json',
-                        'Access-Control-Allow-Origin': '*'
-                    });
-                    res.end(JSON.stringify({ 
-                        message: 'User created successfully',
-                        userId: newUser.insertId 
-                    }));
-                } catch (error) {
-                    res.writeHead(500, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ error: 'Error creating user' }));
-                }
-            });
-        } else {
-            res.writeHead(404, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'API endpoint not found' }));
-        }
+    sendFile(res, content, contentType) {
+        res.writeHead(200, { 'Content-Type': contentType });
+        res.end(content);
     }
 };
 
-module.exports = postHandlers;
-=== ./controllers/handlers/deleteHandlers.js ===
+module.exports = responseHelper;
+=== ./views/pages/404.html ===
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>404 - Page Not Found</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>404 - Page Not Found</h1>
+        <p>Oops! The page you're looking for doesn't exist.</p>
+        <p><a href="/">Go back to homepage</a></p>
+    </div>
+</body>
+</html>
+=== ./views/pages/account.html ===
+
+<section class="account-section">
+    <h2>Account Settings</h2>
+    <div class="account-form">
+        <form id="createAccountForm">
+            <div class="form-group">
+                <label for="username">Username:</label>
+                <input type="text" id="username" name="username" required>
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password:</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+
+            <div class="form-group">
+                <label for="email">Email:</label>
+                <input type="email" id="email" name="email" required>
+            </div>
+
+            <button type="submit" class="submit-btn">Create Account</button>
+        </form>
+        
+        <button id="displaydata" class="display-btn">Display Users</button>
+
+        <div class="forum-section">Hello there</div>
+    </div>
+</section>
+=== ./views/pages/forums.html ===
+
+<section class="forum-section">
+    <h2>Forums</h2>
+    <div class="forum-list">
+        <div class="forum-category">
+            <h3>Academic Discussions</h3>
+            <ul>
+                <li>
+                    <a href="#" class="forum-link">General Discussion</a>
+                    <p class="forum-description">Chat about anything related to SCSU</p>
+                </li>
+                <li>
+                    <a href="#" class="forum-title">Course Registration</a>
+                    <p class="forum-description">Discuss class registration and scheduling</p>
+                </li>
+                <li>
+                    <a href="#" class="forum-title">Study Groups</a>
+                    <p class="forum-description">Find and join study groups</p>
+                </li>
+            </ul>
+        </div>
+    </div>
+</section>
+=== ./views/pages/index.html ===
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SCSU Student Forum</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div id="header-container"></div>
+
+    <div class="body">
+        <section class="forum-section">
+            <h2>Welcome to the SCSU Forums!</h2>
+        </section>
+    </div>
+
+    <div id="footer-container"></div>
+    <script src="/js/main.js"></script>
+    <script src="/js/api.js"></script>
+</body>
+</html>
+=== ./views/pages/messages.html ===
+
+<section class="messages-section">
+    <h2>Messages</h2>
+    <div class="messages-container">
+        <div class="message-list">
+            <p>Your messages will appear here</p>
+        </div>
+    </div>
+</section>
+=== ./views/partials/footer.html ===
+
+<footer>
+    <p>&copy; 2024 SCSU Student Forum</p>
+</footer>
+=== ./views/partials/header.html ===
 
 
-=== ./.gitignore ===
+<header class="header">
+    <div class="container">
+        <h1><a href="/" class="home-link">SCSU Student Forum</a></h1>
+        <nav>
+            <ul>
+                <li><a href="/forums">Forums</a></li>
+                <li><a href="/messages">Messages</a></li>
+                <li><a href="/account">Account</a></li>
+            </ul>
+        </nav>
+    </div>
+</header>
+=== ./views/templates/forumTemplate.html ===
 
-node_modules/
+<div class="forum-body">
+    <h2 id="forum-title">FORUM NAME</h2>
+    <h3 id="forum-description">FORUM DESCRIPTION</h3>
+    <button id="CreatePostButton">Create Post</button>
+    <section class="gd-section">
+    </section>
+</div>
+=== ./package-lock.json ===
+
+{
+  "name": "SCSUForum",
+  "lockfileVersion": 3,
+  "requires": true,
+  "packages": {}
+}
+
 === ./README.md ===
 
 # SCSU Student Forum
