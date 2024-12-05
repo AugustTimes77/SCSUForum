@@ -89,6 +89,8 @@ const App = {
         // Initialize based on current page
         const path = window.location.pathname;
         
+        //this.loadPartials();
+
         if (path.includes('/account')) {
             PageHandlers.initializeAccountPage();
         } else if (path.includes('/forums')) {

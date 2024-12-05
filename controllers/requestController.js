@@ -28,10 +28,16 @@ const routes = {
         default: 'handlePage'
     },
     POST: {
+        createPost: {
+            pattern: /^\/api\/forums\/posts\/create$/,
+            handler: 'handleCreateForumPost'
+        },
+        
         api: {
             pattern: /^\/api\//,
             handler: 'handleApi'
         },
+        
         // Add more POST routes as needed
         default: null
     }
@@ -58,8 +64,10 @@ async function handleRequest(req, res) {
     console.log(`${req.method} request received for: ${req.url}`);
 
     try {
-        // Get handlers for the HTTP method
+        // Get handlers for the HTTP method, inside of index.js
         const methodHandlers = handlers[req.method];
+
+        // No recognized handler
         if (!methodHandlers) {
             res.writeHead(405);
             res.end('Method Not Allowed');

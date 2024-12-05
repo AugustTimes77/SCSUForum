@@ -45,27 +45,6 @@ const postHandlers = {
             res.end(JSON.stringify({ error: 'Error creating user' }));
         }
     },
-
-    // Forum post-related handlers
-    async handleCreateForumPost(req, res) {
-        try {
-            const postData = await parseBody(req);
-            const newPost = await Forum.createPost(postData);
-            
-            res.writeHead(200, { 
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
-            });
-            res.end(JSON.stringify({ 
-                message: 'Post created successfully',
-                postId: newPost.insertId 
-            }));
-        } catch (error) {
-            res.writeHead(500, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'Error creating post' }));
-        }
-    },
-
     // Main API router
     async handleApi(req, res) {
         try {
@@ -88,7 +67,6 @@ const postHandlers = {
             res.end(JSON.stringify({ error: 'Internal server error' }));
         }
     },
-
     async handleCreateForumPost(req, res) {
         try {
             const postData = await parseBody(req);
