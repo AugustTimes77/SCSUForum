@@ -131,7 +131,7 @@ const getHandlers = {
             }
         }
     },
-
+ 
     async handleForum(req, res) {
         try {
             const forumIdentifier = req.url.split('/forum/')[1];
@@ -160,6 +160,10 @@ const getHandlers = {
             const processedTemplate = template
                 .replace('FORUM NAME', forum.name)
                 .replace('FORUM DESCRIPTION', forum.description);
+
+            const mainTemplate = templateService.getTemplateHTML();
+
+            const fullPage = mainTemplate.replace(`,{{content}}`, processedForumContent);
 
             res.writeHead(200, { 'Content-Type': 'text/html' });
             res.end(processedTemplate);
