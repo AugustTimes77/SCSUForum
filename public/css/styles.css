@@ -164,8 +164,9 @@ body {
 }
 
 .post-item button {
-    max-height: min-content;
+    max-height: max-content;
 }
+
 
 /* Remove default list styling for posts */
 .gd-section ul {

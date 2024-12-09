@@ -33,7 +33,7 @@ class Forum {
     static async findPostsById(id) {
         try {
             console.log('Attempting to fetch posts with forum id:', id);
-            const [rows] = await db.pool.query('SELECT title, content, created_at FROM posts WHERE forum_id = ? ORDER BY created_at DESC',
+            const [rows] = await db.pool.query('SELECT post_id, forum_id, title, content, created_at, likes, dislikes FROM posts WHERE forum_id = ? ORDER BY created_at DESC',
                 [id]
             );
             return rows;
@@ -78,6 +78,50 @@ class Forum {
         } catch (error) {
             console.error('Database error in createPost:', error);
             throw new Error(`Database error in createPost: ${error.message}`);
+        }
+    }
+
+    static async likePost(postId, isLike){
+        try {
+            const connection = await db.pool.getConnection();
+            await connection.beginTransaction();
+
+            try {
+                const [post] = await connection.query(
+                    'SELECT likes, dislikes FROM posts WHERE post_id = ?',
+                    [postId]
+                );
+                if (!post || post.length === 0){
+                    throw new Error('Post not found');
+                }
+
+                let query;
+                if (isLike) {
+                    query = 'UPDATE posts SET likes = likes + 1 WHERE post_id = ?';
+                } else {
+                    query = 'UPDATE posts SET dislikes = dislikes + 1 WHERE post_id = ?';
+                }
+
+                await connection.query(query, [postId]);
+
+                await connection.commit();
+
+                const [updatedPost] = await connection.query(
+                    'SELECT post_id, likes, dislikes FROM posts WHERE post_id = ?',
+                    [postId]
+                );
+
+                connection.release();
+                return updatedPost[0];
+
+            } catch(error){
+                await connection.rollback();
+                connection.release();
+                throw error;
+            }
+        } catch (error) {
+            console.error('Database error in likePost:', error.message);
+            throw new Error(`Database error in likePost: ${error.message}`);
         }
     }
 }

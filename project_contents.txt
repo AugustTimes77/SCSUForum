@@ -7,7 +7,8 @@
 │   │   ├── deleteHandlers.js
 │   │   ├── getHandlers.js
 │   │   ├── index.js
-│   │   └── postHandlers.js
+│   │   ├── postHandlers.js
+│   │   └── putHandlers.js
 │   └── requestController.js
 ├── favicon.ico
 ├── .gitignore
@@ -28,6 +29,7 @@
 ├── services
 │   ├── authServices.js
 │   └── templateService.js
+├── to-do.txt
 ├── utils
 │   ├── mimeTypes.js
 │   ├── pathHandler.js
@@ -45,8 +47,9 @@
     └── templates
         └── forumTemplate.html
 
-14 directories, 32 files
+14 directories, 34 files
 === FILE CONTENTS ===
+
 === ./.gitignore ===
 
 node_modules/
@@ -242,7 +245,7 @@ const getHandlers = {
             }
         }
     },
-
+ 
     async handleForum(req, res) {
         try {
             const forumIdentifier = req.url.split('/forum/')[1];
@@ -271,6 +274,10 @@ const getHandlers = {
             const processedTemplate = template
                 .replace('FORUM NAME', forum.name)
                 .replace('FORUM DESCRIPTION', forum.description);
+
+            const mainTemplate = templateService.getTemplateHTML();
+
+            const fullPage = mainTemplate.replace(`,{{content}}`, processedForumContent);
 
             res.writeHead(200, { 'Content-Type': 'text/html' });
             res.end(processedTemplate);
@@ -311,10 +318,13 @@ module.exports = getHandlers;
 
 const getHandlers = require('./getHandlers');
 const postHandlers = require('./postHandlers');
+const putHandlers = require('./putHandlers');
 
+// this is the handlers that is references in requestConroller
 module.exports = {
     GET: getHandlers,
-    POST: postHandlers
+    POST: postHandlers,
+    PUT: putHandlers
 };
 === ./controllers/handlers/postHandlers.js ===
 
@@ -365,27 +375,6 @@ const postHandlers = {
             res.end(JSON.stringify({ error: 'Error creating user' }));
         }
     },
-
-    // Forum post-related handlers
-    async handleCreateForumPost(req, res) {
-        try {
-            const postData = await parseBody(req);
-            const newPost = await Forum.createPost(postData);
-            
-            res.writeHead(200, { 
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
-            });
-            res.end(JSON.stringify({ 
-                message: 'Post created successfully',
-                postId: newPost.insertId 
-            }));
-        } catch (error) {
-            res.writeHead(500, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'Error creating post' }));
-        }
-    },
-
     // Main API router
     async handleApi(req, res) {
         try {
@@ -408,7 +397,6 @@ const postHandlers = {
             res.end(JSON.stringify({ error: 'Internal server error' }));
         }
     },
-
     async handleCreateForumPost(req, res) {
         try {
             const postData = await parseBody(req);
@@ -450,6 +438,62 @@ const postHandlers = {
 };
 
 module.exports = postHandlers;
+=== ./controllers/handlers/putHandlers.js ===
+
+
+const { pool } = require('../../config/database');
+
+const User = require('../../models/User');
+const Forum = require('../../models/Forum');
+
+
+const parseBody = (req) => {
+    return new Promise((resolve, reject) => {
+        let body = '';
+        req.on('data', chunk => {
+            body += chunk.toString();
+        });
+        req.on('end', () => {
+            try {
+                resolve(JSON.parse(body));
+            } catch (error) {
+                reject(new Error('Invalid JSON'));
+            }
+        });
+    });
+};
+
+const updateHandlers = {
+    async handlePostReaction(req, res) {
+        try {
+            const data = await parseBody(req);
+            const { post_id, isLIke } = data;
+
+            if (!post_id) {
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Post ID is required'}));
+                return;
+            }
+
+            const updatedPost = await Forum.likePost(post_id, isLike);
+
+            res.writeHead(200, {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            });
+            res.end(JSON.stringify(updatedPost));
+        } catch (error) {
+            console.error('Error handling post reaction:', error);
+            res.writehead(500, {'Content-Type': 'application/json'});
+            res.end(JSON.stringify({ error: 'Failed to update post reaction'}));
+        }
+    }
+};
+
+
+
+
+module.exports = updateHandlers;
 === ./controllers/requestController.js ===
 
 // controllers/requestController.js
@@ -482,11 +526,24 @@ const routes = {
         default: 'handlePage'
     },
     POST: {
+        createPost: {
+            pattern: /^\/api\/forums\/posts\/create$/,
+            handler: 'handleCreateForumPost'
+        },
+        
         api: {
             pattern: /^\/api\//,
             handler: 'handleApi'
         },
+        
         // Add more POST routes as needed
+        default: null
+    },
+    PUT: {
+        likePost: {
+            pattern: /^\/api\/posts\/react$/,
+            handler: 'handlePostReaction'
+        },
         default: null
     }
 };
@@ -512,8 +569,10 @@ async function handleRequest(req, res) {
     console.log(`${req.method} request received for: ${req.url}`);
 
     try {
-        // Get handlers for the HTTP method
+        // Get handlers for the HTTP method, inside of index.js
         const methodHandlers = handlers[req.method];
+
+        // No recognized handler
         if (!methodHandlers) {
             res.writeHead(405);
             res.end('Method Not Allowed');
@@ -577,7 +636,7 @@ class Forum {
     static async findPostsById(id) {
         try {
             console.log('Attempting to fetch posts with forum id:', id);
-            const [rows] = await db.pool.query('SELECT title, content, created_at FROM posts WHERE forum_id = ?',
+            const [rows] = await db.pool.query('SELECT post_id, forum_id, title, content, created_at, likes, dislikes FROM posts WHERE forum_id = ? ORDER BY created_at DESC',
                 [id]
             );
             return rows;
@@ -622,6 +681,50 @@ class Forum {
         } catch (error) {
             console.error('Database error in createPost:', error);
             throw new Error(`Database error in createPost: ${error.message}`);
+        }
+    }
+
+    static async likePost(postId, isLike){
+        try {
+            const connection = await db.pool.getConnection();
+            await connection.beginTransaction();
+
+            try {
+                const [post] = await connection.query(
+                    'SELECT likes, dislikes FROm posts WHERE post_id = ?',
+                    [postId]
+                );
+                if (!post || post.length === 0){
+                    throw new Error('Post not found');
+                }
+
+                let query;
+                if (isLike) {
+                    query = 'UPDATE posts SET likes = likes + 1 WHERE post_id = ?';
+                } else {
+                    query = 'UPDATE posts SET dislikes = dislikes + 1 WHERE post_id = ?';
+                }
+
+                await connection.query(query, [postId]);
+
+                await connection.commit();
+
+                const [updatedPost] = await connection.query(
+                    'SELECT post_id, likes, dislikes FROM posts WHERE post_id = ?',
+                    [postId]
+                );
+
+                connection.release();
+                return updatedPost[0];
+
+            } catch(error){
+                await connection.rollback();
+                connection.release();
+                throw error;
+            }
+        } catch (error) {
+            console.error('Database error in likePost:', error.message);
+            throw new Error(`Database error in likePost: ${error.message}`);
         }
     }
 }
@@ -839,8 +942,9 @@ body {
 }
 
 .post-item button {
-    max-height: min-content;
+    max-height: max-content;
 }
+
 
 /* Remove default list styling for posts */
 .gd-section ul {
@@ -1171,7 +1275,6 @@ const PostAPI = {
             throw error;
         }
     },
-
     displayPosts(posts){
         const contentDiv = document.querySelector('.gd-section');
         if (!contentDiv) return;
@@ -1184,22 +1287,76 @@ const PostAPI = {
             posts.forEach(post => {
                 contentDiv.innerHTML += `
                     <div class="post-item">
+                        <p hidden>${post.forum_id}</p>
+                        <p hidden>${post.post_id}</p>
                         <li class="main-post">
                             <h3>${post.title}</h3>
                             <p>${post.content}</p>
                         </li>
                         <li class="sub-post">
+                            <button class="reaction-btn like-btn" data-type="like">Like</button>
+                            <span class="likes-count">${post.likes}</span>
+                            <span class="dislikes-count">${post.dislikes}</span>
+                            <button class="reaction-btn dislike-btn" data-type="dislike">Dislike</button>
                             <small>Posted on: ${new Date(post.created_at).toLocaleDateString()}</small>
-                            <button>Comment</button>
                         </li>
-                    </div>`;
+                    </div>`; // includes post id and forum id
             });
         }
         
         contentDiv.innerHTML += '</ul>';
+
+        this.attachReactionHandlers();
     },
 
+    async likePost(postId, isLike){
+        try {
+            const response = await fetch('/api/posts/react', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ post_id: postId, isLike})
+            });
 
+            if (!response.ok) {
+                throw new Error("Failed to update post reaction");
+            }
+
+            const result = await response.json();
+            return result;
+        } catch (error) {
+            console.error('Error updating post reaction:', error);
+            throw error;
+        }
+    },
+
+    attachReactionHandlers() {
+        document.querySelectorAll('.reaction-btn').forEach(button => {
+            button.addEventListener('click', async (e) => {
+                try {
+                    const postItem = e.target.closest('.post-item');
+                    const postId = postItem.dataset.postId;
+                    const isLike = e.target.dataset.type === 'like';
+                    
+                    // Disable the button during the request
+                    button.disabled = true;
+                    
+                    // Update the post reaction
+                    const updatedPost = await this.likePost(postId, isLike);
+                    
+                    // Update the UI with new counts
+                    postItem.querySelector('.likes-count').textContent = updatedPost.likes;
+                    postItem.querySelector('.dislikes-count').textContent = updatedPost.dislikes;
+                } catch (error) {
+                    console.error('Failed to update reaction:', error);
+                    alert('Failed to update reaction. Please try again.');
+                } finally {
+                    button.disabled = false;
+                }
+            });
+        });
+    }
 };
 
 // Message-related API calls (placeholder for future)
@@ -1299,6 +1456,8 @@ const App = {
         // Initialize based on current page
         const path = window.location.pathname;
         
+        //this.loadPartials();
+
         if (path.includes('/account')) {
             PageHandlers.initializeAccountPage();
         } else if (path.includes('/forums')) {
@@ -1969,3 +2128,8 @@ The application implements consistent error handling:
 ## License
 
 [Add appropriate license information]
+=== ./to-do.txt ===
+
+Imporant
+- Add post id to the post to make it easier to find the post when liking / disliking
+- need functioni to communicate with server to add likes

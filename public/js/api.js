@@ -72,6 +72,52 @@ const UserAPI = {
         }
         
         contentDiv.innerHTML += '</ul>';
+    },
+
+    async login(form) {
+        try {
+            const formData = new FormData(form);
+            const userData = {
+                username: formData.get('username'),
+                password: formData.get('password')
+            };
+
+            const response = await fetch('/api/users/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(userData)
+            });
+
+            if (!response.ok) {
+                throw new Error('Login failed');
+            }
+
+            const result = await response.json();
+            
+            // Store user info in localStorage for easy access
+            localStorage.setItem('currentUser', JSON.stringify(result.user));
+            
+            // Redirect to forums after successful login
+            window.location.href = '/forums';
+        } catch (error) {
+            alert('Login failed: ' + error.message);
+            throw error;
+        }
+    },
+
+    getCurrentUser() {
+        const userString = localStorage.getItem('currentUser');
+        return userString ? JSON.parse(userString) : null;
+    },
+
+    logout() {
+        localStorage.removeItem('currentUser');
+        fetch('/api/users/logout', { method: 'POST' })
+            .then(() => {
+                window.location.href = '/login';
+            });
     }
 };
 
@@ -177,7 +223,6 @@ const PostAPI = {
             throw error;
         }
     },
-
     displayPosts(posts){
         const contentDiv = document.querySelector('.gd-section');
         if (!contentDiv) return;
@@ -187,25 +232,81 @@ const PostAPI = {
         if (posts.length === 0) {
             contentDiv.innerHTML += '<li>No posts found</li>';
         } else {
+            
             posts.forEach(post => {
                 contentDiv.innerHTML += `
-                    <div class="post-item">
+                    <div class="post-item" data-post-id="${post.post_id}">  // Add this data attribute
                         <li class="main-post">
                             <h3>${post.title}</h3>
                             <p>${post.content}</p>
                         </li>
                         <li class="sub-post">
+                            <button class="reaction-btn like-btn" data-type="like">Like</button>
+                            <span class="likes-count">${post.likes || 0}</span>
+                            <span class="dislikes-count">${post.dislikes || 0}</span>
+                            <button class="reaction-btn dislike-btn" data-type="dislike">Dislike</button>
                             <small>Posted on: ${new Date(post.created_at).toLocaleDateString()}</small>
-                            <button>Comment</button>
                         </li>
                     </div>`;
             });
         }
         
         contentDiv.innerHTML += '</ul>';
+
+        this.attachReactionHandlers();
     },
 
+    async likePost(postId, isLike) {
+        try {
+            console.log('Sending reaction:', { postId, isLike });  // Debug log
+            
+            const response = await fetch('/api/posts/react', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ post_id: postId, isLike })
+            });
 
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to update post reaction');
+            }
+
+            const result = await response.json();
+            return result;
+        } catch (error) {
+            console.error('Error updating post reaction:', error);
+            throw error;
+        }
+    },
+
+    attachReactionHandlers() {
+        document.querySelectorAll('.reaction-btn').forEach(button => {
+            button.addEventListener('click', async (e) => {
+                try {
+                    const postItem = e.target.closest('.post-item');
+                    const postId = postItem.dataset.postId;
+                    const isLike = e.target.dataset.type === 'like';
+                    
+                    // Disable the button during the request
+                    button.disabled = true;
+                    
+                    // Update the post reaction
+                    const updatedPost = await this.likePost(postId, isLike);
+                    
+                    // Update the UI with new counts
+                    postItem.querySelector('.likes-count').textContent = updatedPost.likes;
+                    postItem.querySelector('.dislikes-count').textContent = updatedPost.dislikes;
+                } catch (error) {
+                    console.error('Failed to update reaction:', error);
+                    alert('Failed to update reaction. Please try again.');
+                } finally {
+                    button.disabled = false;
+                }
+            });
+        });
+    }
 };
 
 // Message-related API calls (placeholder for future)

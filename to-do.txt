@@ -1,0 +1,3 @@
+Imporant
+- Add post id to the post to make it easier to find the post when liking / disliking
+- need functioni to communicate with server to add likes

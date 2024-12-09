@@ -103,6 +103,45 @@ const postHandlers = {
                 message: error.message
             }));
         }
+    },
+
+    async handleLogin(req, res) {
+        try {
+            const userData = await parseBody(req);
+            
+            // For a student project, we'll do simple password checking
+            const [user] = await db.pool.query(
+                'SELECT user_id, username, email, role FROM users WHERE username = ? AND password_hash = ?',
+                [userData.username, userData.password]
+            );
+
+            if (!user || user.length === 0) {
+                res.writeHead(401, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Invalid username or password' }));
+                return;
+            }
+
+            // Set session data
+            req.session.userId = user[0].user_id;
+            req.session.username = user[0].username;
+            
+            res.writeHead(200, { 
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            });
+            res.end(JSON.stringify({ 
+                success: true,
+                user: {
+                    id: user[0].user_id,
+                    username: user[0].username,
+                    email: user[0].email,
+                    role: user[0].role
+                }
+            }));
+        } catch (error) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Login failed' }));
+        }
     }
 
 };
