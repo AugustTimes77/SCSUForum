@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Sign Up</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, Helvetica, sans-serif;
+            height: 100vh;
+            background-color: #e6f7ff;
+        }
+
+        .container {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: flex;
+            width: 60%;
+            height: auto;
+            background-color: white;
+            border: 1px solid #ccc;
+            border-radius: 25px;
+        }
+
+        .sign-in-section, .side-sign-in {
+            width: 50%;
+            padding-left: 50px;
+            padding-right: 50px;
+            padding-top: 80px;
+            padding-bottom: 80px;
+        }
+
+        .sign-in-section {
+            background-color: #4a90e2;
+            color: white;
+            border-top-right-radius: 25px;
+            border-bottom-right-radius: 25px;
+        }
+
+        .side-sign-in {
+            background-color: #f8f8ff; /* Cold white background */
+            border-top-left-radius: 25px;
+            border-bottom-left-radius: 25px;
+        }
+
+        footer {
+            text-align: center;
+            padding: 10px;
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            background-color: #d9d9d9;
+            border-radius: 20px 20px 0px 0px;
+        }
+
+        label {
+            color: white;
+        }
+
+        button {
+            display: block;
+            margin: 20px auto;
+            background: #ffffff;
+            color: #4a90e2;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            padding: 9px 20px;
+        }
+
+        button:hover {
+            background: linear-gradient(to bottom, #ccdeed 0%, rgb(141, 148, 150) 100%);
+        }
+
+        input {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+
+        p {
+            font-size: 14px;
+        }
+
+        a {
+            color: #ffdd57;
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="side-sign-in">
+            <h1>Sign Up</h1>
+            <p>Join us and be part of the community!</p>
+        </div>
+
+        <div class="sign-in-section">
+            <form id="signinForm" action="/signin" method="POST">
+                <label for="signinEmail">Email:</label>
+                <br>
+                <input type="email" id="signinEmail" name="email" required>
+                <br>
+                <label for="signinPassword">Password:</label>
+                <br>
+                <input type="password" id="signinPassword" name="password" required>
+                <br>
+                <button type="submit">Sign Up</button>
+            </form>
+            <p>Already have an account? - <a href="sign_in.html">Sign In</a> Here</p>
+        </div>
+    </div>
+
+    <footer>&#xA9; Group 2</footer>
+</body>
+</html>

@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Welcome Page</title>
+    <style>
+        #header {
+            background: linear-gradient(to bottom, #4a90e2 0%, rgba(69, 129, 142, 0.5) 100%);
+            padding: 50px 10px;
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 38px;
+            text-align: center;
+            font-weight: bold;
+            position: fixed;
+            top: 0;
+            width: 100%;
+            transition: 0.4s;
+            border-radius: 0px 0px 20px 20px;
+        }
+
+        #header button{
+            font-family: Arial, Helvetica, sans-serif;
+            background: linear-gradient(to bottom, #a8cab7 0%, rgba(69, 129, 142, 0.5) 100%);
+            border-radius: 15px;
+            padding: 10px 25px;
+        }
+
+        #header button:hover{
+            background: linear-gradient(to bottom, #a8cab7 0%, rgba(89, 110, 114, 0.5) 100%);
+        }
+
+        #header h1, #header h2{
+            color: #263c41;
+        }
+        .paragraph{
+            font-size: 23px;
+            text-align: center;
+            font-family: Arial, Helvetica, sans-serif;
+            color: #4f6067;
+            padding: 40px 170px;
+        }
+
+        .footer{
+            font-family: Arial, Helvetica, sans-serif;
+            font-size:15px;
+            text-align: center;
+            padding: 10px;
+            background: linear-gradient(to top, #4a90e2 0%, rgba(69, 129, 142, 0.5) 90%);
+            border-radius: 20px 20px 0px 0px;
+        }
+        
+        body{
+            margin:0;
+            background-color: #e7e9e9;
+        }
+        
+        main{
+            margin-top: 390px;
+        }
+
+        
+    </style>
+
+    <script>
+        window.onscroll = function() {scrollFunction()};
+        
+        function scrollFunction() {
+        if (document.body.scrollTop > 50 || document.documentElement.scrollTop > 50) {
+            document.getElementById("header").style.fontSize = "25px";
+        } else {
+            document.getElementById("header").style.fontSize = "38px";
+        }
+        }
+    </script>
+
+</head>
+<body>
+    <nav id="header">
+        <h1>Welcome to SCSU Forum!</h1>
+        <h2>Feel free to Join</h2>
+        
+        <button href="sign_up.html">Sign Up</button>
+        <button href="sign_in.html">Sign In</button>
+    </nav>
+
+    <main>
+        <div class="paragraph">
+            <p>Welcome to SCSU Forums, where users come together to 
+                build connections and share passions. This platform 
+                serves as a dynamic hub for creating and interacting 
+                with posts and connecting with others, opening opportunities 
+                not only to share creativity and perspectives but to 
+                explore the diverse content contributed by a thriving 
+                network of users. 
+            </p>
+                
+            <p>Whether you're seeking inspiration, 
+                sparking conversations, or simply immersing yourself 
+                in a vibrant exchange of ideas, this interactive space 
+                provides the perfect environment. It’s a safe environment 
+                to foster open dialogue and explore aspects of campus life.
+            </p>
+        </div>
+    </main>
+
+    <footer class="footer">&#xA9; Group 2</footer>
+
+    
+</body>
+</html>
