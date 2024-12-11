@@ -23,6 +23,7 @@
 │   ├── css
 │   │   └── styles.css
 │   └── js
+│       ├── account.js
 │       ├── api.js
 │       └── main.js
 ├── README.md
@@ -49,7 +50,7 @@
     └── templates
         └── forumTemplate.html
 
-14 directories, 36 files
+14 directories, 37 files
 === FILE CONTENTS ===
 === ./.gitignore ===
 
@@ -110,7 +111,38 @@ module.exports = {
 };
 === ./controllers/handlers/deleteHandlers.js ===
 
+const { pool } = require('../../config/database');
 
+const deleteHandlers = {
+    async handleDeletePost(req, res) {
+        try {
+            const postId = req.url.split('/').pop();
+            
+            // Get user info from session to check admin role
+            const user = req.session?.user;
+            if (!user || user.role !== 'admin') {
+                res.writeHead(403, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Forbidden - Admin access required' }));
+                return;
+            }
+
+            // Delete the post
+            await pool.query('DELETE FROM posts WHERE post_id = ?', [postId]);
+            
+            res.writeHead(200, { 
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            });
+            res.end(JSON.stringify({ success: true }));
+        } catch (error) {
+            console.error('Error deleting post:', error);
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Failed to delete post' }));
+        }
+    }
+};
+
+module.exports = deleteHandlers;
 === ./controllers/handlers/getHandlers.js ===
 
 /**
@@ -175,15 +207,20 @@ const getHandlers = {
         try {
             let pageName = req.url === '/' ? 'index' : req.url.match(/^\/([^/]+)/)[1];
             let pageContent;
-
-            if (pageName === 'index') {
+    
+            // Special handling for the account page
+            if (pageName === 'account') {
+                pageContent = await fs.readFile(path.join(__dirname, '../../views/pages/account.html'), 'utf8');
+                const template = templateService.getTemplateHTML();
+                pageContent = template.replace('{{content}}', pageContent);
+            } else if (pageName === 'index') {
                 pageContent = await fs.readFile(path.join(__dirname, '../../views/pages/index.html'), 'utf8');
             } else {
                 const template = templateService.getTemplateHTML();
                 const content = await templateService.readPageContent(pageName);
                 pageContent = template.replace('{{content}}', content);
             }
-
+    
             res.writeHead(200, { 'Content-Type': 'text/html' });
             res.end(pageContent);
         } catch (error) {
@@ -320,12 +357,14 @@ module.exports = getHandlers;
 const getHandlers = require('./getHandlers');
 const postHandlers = require('./postHandlers');
 const putHandlers = require('./putHandlers');
+const deleteHandlers = require('./deleteHandlers');
 
 // this is the handlers that is references in requestConroller
 module.exports = {
     GET: getHandlers,
     POST: postHandlers,
-    PUT: putHandlers
+    PUT: putHandlers,
+    DELETE: deleteHandlers
 };
 === ./controllers/handlers/postHandlers.js ===
 
@@ -634,7 +673,6 @@ const routes = {
             pattern: /^\/forum\/([^/]+)$/,
             handler: 'handleForum'
         },
-        // Add login page route
         login: {
             pattern: /^\/login$/,
             handler: 'handlePage'
@@ -643,12 +681,10 @@ const routes = {
         default: 'handlePage'
     },
     POST: {
-        // Add login endpoint
         login: {
             pattern: /^\/api\/users\/login$/,
             handler: 'handleLogin'
         },
-        // Add logout endpoint
         logout: {
             pattern: /^\/api\/users\/logout$/,
             handler: 'handleLogout'
@@ -668,10 +704,15 @@ const routes = {
         default: null
     },
     PUT: {
-        // Add this new route
         postReaction: {
             pattern: /^\/api\/posts\/react$/,
             handler: 'handlePostReaction'
+        }
+    },
+    DELETE: {
+        deletePost: {
+            pattern: /^\/api\/posts\/\d+$/,
+            handler: 'handleDeletePost'
         }
     }
 };
@@ -754,6 +795,47 @@ function findRoute(method, url) {
 }
 
 module.exports = { handleRequest };
+=== ./models/User.js ===
+
+/**
+ * models/User.js
+ * Handles user-related database operations
+ */
+
+const db = require('../config/database');
+
+class User {
+    static async findAll() {
+        try {
+            console.log('Attempting to fetch all users');
+            const [rows] = await db.pool.query('SELECT * FROM users');
+            console.log('Successfully fetched users:', rows);
+            return rows;
+        } catch (error) {
+            console.error('Database error in findAll:', error.message);
+            // Re-throw the error with more details
+            throw new Error(`Database error in findAll: ${error.message}`);
+        }
+    }
+
+    static async create(userData) {
+        const query = 'INSERT INTO users (username, password_hash, email, role) VALUES (?, ?, ?, ?)';
+        const values = [
+            userData.username,
+            userData.password,
+            userData.email,
+            userData.role || 'owl'
+        ];
+
+        const [result] = await db.pool.query(query, values);
+        return result;
+    }
+}
+
+module.exports = User;
+=== ./models/message.js ===
+
+
 === ./models/Forum.js ===
 
 // models/Forum.js
@@ -791,7 +873,13 @@ class Forum {
     static async findPostsById(id) {
         try {
             console.log('Attempting to fetch posts with forum id:', id);
-            const [rows] = await db.pool.query('SELECT post_id, forum_id, title, content, created_at, likes, dislikes FROM posts WHERE forum_id = ? ORDER BY created_at DESC',
+            const [rows] = await db.pool.query(
+                `SELECT p.post_id, p.forum_id, p.user_id, p.title, p.content, 
+                 p.created_at, p.likes, p.dislikes, u.username 
+                 FROM posts p 
+                 LEFT JOIN users u ON p.user_id = u.user_id 
+                 WHERE p.forum_id = ? 
+                 ORDER BY p.created_at DESC`,
                 [id]
             );
             return rows;
@@ -911,50 +999,6 @@ class Forum {
 }
 
 module.exports = Forum;
-=== ./models/User.js ===
-
-/**
- * models/User.js
- * Handles user-related database operations
- */
-
-const db = require('../config/database');
-
-class User {
-    static async findAll() {
-        try {
-            console.log('Attempting to fetch all users');
-            const [rows] = await db.pool.query('SELECT * FROM users');
-            console.log('Successfully fetched users:', rows);
-            return rows;
-        } catch (error) {
-            console.error('Database error in findAll:', error.message);
-            // Re-throw the error with more details
-            throw new Error(`Database error in findAll: ${error.message}`);
-        }
-    }
-
-    static async create(userData) {
-        const query = 'INSERT INTO users (username, password_hash, email, role) VALUES (?, ?, ?, ?)';
-        const values = [
-            userData.username,
-            userData.password,
-            userData.email,
-            userData.role || 'owl'
-        ];
-
-        const [result] = await db.pool.query(query, values);
-        return result;
-    }
-}
-
-module.exports = User;
-=== ./models/message.js ===
-
-
-=== ./project_contents.txt ===
-
-
 === ./public/css/styles.css ===
 
 /* Base styles */
@@ -1275,6 +1319,129 @@ footer {
     padding: 1rem;
     margin-bottom: 1rem;
 }
+=== ./public/js/account.js ===
+
+document.addEventListener('DOMContentLoaded', function() {
+    const currentUser = UserAPI.getCurrentUser();
+    const accountContainer = document.getElementById('account-container');
+    
+    if (!currentUser) {
+        // Show login form with register option
+        accountContainer.innerHTML = `
+            <div class="login-section">
+                <h2>Login</h2>
+                <div class="account-form">
+                    <form id="loginForm">
+                        <div class="form-group">
+                            <label for="username">Username:</label>
+                            <input type="text" id="username" name="username" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="password">Password:</label>
+                            <input type="password" id="password" name="password" required>
+                        </div>
+
+                        <button type="submit" class="submit-btn">Login</button>
+                    </form>
+                    <div id="loginMessage"></div>
+                    <div class="register-option">
+                        <p>Don't have an account?</p>
+                        <button id="showRegisterForm" class="display-btn">Register New Account</button>
+                    </div>
+                </div>
+            </div>`;
+
+        // Add login form handler
+        const loginForm = document.getElementById('loginForm');
+        const messageDiv = document.getElementById('loginMessage');
+        
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            try {
+                await UserAPI.login(loginForm);
+                window.location.reload();
+            } catch (error) {
+                messageDiv.textContent = error.message;
+                messageDiv.style.color = 'red';
+            }
+        });
+
+        // Add register button handler
+        document.getElementById('showRegisterForm').addEventListener('click', () => {
+            accountContainer.innerHTML = `
+                <div class="register-section">
+                    <h2>Create New Account</h2>
+                    <div class="account-form">
+                        <form id="createAccountForm">
+                            <div class="form-group">
+                                <label for="username">Username:</label>
+                                <input type="text" id="username" name="username" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="password">Password:</label>
+                                <input type="password" id="password" name="password" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="email">Email:</label>
+                                <input type="email" id="email" name="email" required>
+                            </div>
+
+                            <button type="submit" class="submit-btn">Create Account</button>
+                        </form>
+                        <div id="registerMessage"></div>
+                        <div class="login-option">
+                            <p>Already have an account?</p>
+                            <button id="showLoginForm" class="display-btn">Back to Login</button>
+                        </div>
+                    </div>
+                </div>`;
+
+            // Add create account form handler
+            const createAccountForm = document.getElementById('createAccountForm');
+            const registerMessage = document.getElementById('registerMessage');
+            
+            createAccountForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                try {
+                    await UserAPI.createAccount(createAccountForm);
+                    registerMessage.textContent = 'Account created successfully! You can now login.';
+                    registerMessage.style.color = 'green';
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 2000);
+                } catch (error) {
+                    registerMessage.textContent = error.message;
+                    registerMessage.style.color = 'red';
+                }
+            });
+
+            // Add back to login handler
+            document.getElementById('showLoginForm').addEventListener('click', () => {
+                window.location.reload();
+            });
+        });
+    } else {
+        // Show user account information
+        accountContainer.innerHTML = `
+            <h2>Account Settings</h2>
+            <div class="account-form">
+                <div class="user-info">
+                    <h3>Welcome, ${currentUser.username}!</h3>
+                    <p>Email: ${currentUser.email}</p>
+                    <p>Role: ${currentUser.role}</p>
+                </div>
+                <button id="logoutButton" class="display-btn">Logout</button>
+            </div>`;
+
+        // Add logout handler
+        document.getElementById('logoutButton').addEventListener('click', () => {
+            UserAPI.logout();
+        });
+    }
+});
 === ./public/js/api.js ===
 
 /**
@@ -1460,13 +1627,13 @@ const ForumAPI = {
             if (!currentUser) {
                 throw new Error('User must be logged in to create posts');
             }
-
+    
             // Add user_id to post data
             const postWithUser = {
                 ...postData,
-                user_id: currentUser.id
+                user_id: currentUser.id  // Make sure this matches the property name from login response
             };
-
+    
             const response = await fetch('/api/forums/posts/create', {
                 method: 'POST',
                 headers: {
@@ -1474,12 +1641,12 @@ const ForumAPI = {
                 },
                 body: JSON.stringify(postWithUser)
             });
-
+    
             if (!response.ok) {
                 const error = await response.json();
                 throw new Error(error.message || 'Failed to create post');
             }
-
+    
             const result = await response.json();
             return result;
         } catch (error) {
@@ -1543,10 +1710,13 @@ const PostAPI = {
         }
     },
 
-
     displayPosts(posts) {
         const contentDiv = document.querySelector('.gd-section');
         if (!contentDiv) return;
+
+        // Get current user from localStorage
+        const currentUser = UserAPI.getCurrentUser();
+        const isAdmin = currentUser?.role === 'admin';
 
         contentDiv.innerHTML = '<h2>Posts</h2><ul>';
         
@@ -1559,7 +1729,20 @@ const PostAPI = {
                         <li class="main-post">
                             <div class="post-header">
                                 <h3>${post.title}</h3>
-                                <small>Posted by User ID: ${post.user_id}</small>
+                                <small>Posted by ${post.username || 'Anonymous'} (ID: ${post.user_id})</small>
+                                ${isAdmin ? `
+                                    <button class="delete-post-btn" 
+                                            data-post-id="${post.post_id}"
+                                            style="color: white; 
+                                                   background-color: #dc3545; 
+                                                   border: none;
+                                                   padding: 5px 10px;
+                                                   border-radius: 4px;
+                                                   cursor: pointer;
+                                                   float: right;">
+                                        Delete Post
+                                    </button>
+                                ` : ''}
                             </div>
                             <p>${post.content}</p>
                         </li>
@@ -1576,6 +1759,47 @@ const PostAPI = {
         
         contentDiv.innerHTML += '</ul>';
         this.attachReactionHandlers();
+        this.attachDeleteHandlers();
+    },
+
+    attachDeleteHandlers() {
+        document.querySelectorAll('.delete-post-btn').forEach(button => {
+            button.addEventListener('click', async (e) => {
+                if (confirm('Are you sure you want to delete this post?')) {
+                    try {
+                        const postId = e.target.dataset.postId;
+                        await this.deletePost(postId);
+                        
+                        // Remove the post from the UI
+                        const postElement = e.target.closest('.post-item');
+                        postElement.remove();
+                    } catch (error) {
+                        alert('Failed to delete post: ' + error.message);
+                    }
+                }
+            });
+        });
+    },
+
+    async deletePost(postId) {
+        try {
+            const response = await fetch(`/api/posts/${postId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to delete post');
+            }
+
+            return await response.json();
+        } catch (error) {
+            console.error('Error deleting post:', error);
+            throw error;
+        }
     },
 
     async likePost(postId, isLike) {
@@ -2027,42 +2251,6 @@ const PageHandlers = {
 document.addEventListener('DOMContentLoaded', () => {
     App.init();
 });
-=== ./server.js ===
-
-/**
- * server.js
- * Main server entry point. Initializes HTTP server and starts listening for requests.
- */
-
-const http = require('http');
-const express = require('express');
-const session = require('express-session');
-const cookieParser = require('cookie-parser');
-const app = require('./app');
-
-const server = express();
-
-server.use(cookieParser());
-server.use(session({
-    secret:'your-secret-key',
-    resave: false,
-    saveUninitialized: true,
-    cookie: {
-        maxAge: 24 * 60 * 60 * 1000
-    }
-}));
-
-server.use((req, res) => {
-    app(req,res);
-});
-
-const port = process.env.PORT || 80;
-
-server.listen(port, () => {
-    console.log(`Server running on port ${port}`);
-    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`Server time: ${new Date().toISOString()}`);
-});
 === ./services/authServices.js ===
 
 
@@ -2208,49 +2396,6 @@ module.exports = responseHelper;
     </div>
 </body>
 </html>
-=== ./views/pages/account.html ===
-
-<section class="account-section">
-    <h2>Account Settings</h2>
-    <div class="account-form">
-        <form id="createAccountForm">
-            <div class="form-group">
-                <label for="username">Username:</label>
-                <input type="text" id="username" name="username" required>
-            </div>
-
-            <div class="form-group">
-                <label for="password">Password:</label>
-                <input type="password" id="password" name="password" required>
-            </div>
-
-            <div class="form-group">
-                <label for="email">Email:</label>
-                <input type="email" id="email" name="email" required>
-            </div>
-
-            <button type="submit" class="submit-btn">Create Account</button>
-        </form>
-        
-        <button id="displaydata" class="display-btn">Display Users</button>
-
-        <div class="forum-section">Hello there</div>
-    </div>
-</section>
-=== ./views/pages/forums.html ===
-
-<section class="forum-section">
-    <h2>Forums</h2>
-    <button id="CreateForumButton" class="submit-btn">Create New Forum</button>
-    <div class="forum-list">
-        <div class="forum-category">
-            <h3>Academic Discussions</h3>
-            <ul>
-                <!-- Forums will be loaded here -->
-            </ul>
-        </div>
-    </div>
-</section>
 === ./views/pages/index.html ===
 
 <!DOCTYPE html>
@@ -2282,6 +2427,151 @@ module.exports = responseHelper;
     <div class="messages-container">
         <div class="message-list">
             <p>Your messages will appear here</p>
+        </div>
+    </div>
+</section>
+=== ./views/pages/account.html ===
+
+<section class="account-section">
+    <div id="account-container">
+        <!-- Content will be dynamically loaded here -->
+    </div>
+</section>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const currentUser = UserAPI.getCurrentUser();
+    const accountContainer = document.getElementById('account-container');
+    
+    if (!currentUser) {
+        // Show login form with register option
+        accountContainer.innerHTML = `
+            <div class="login-section">
+                <h2>Login</h2>
+                <div class="account-form">
+                    <form id="loginForm">
+                        <div class="form-group">
+                            <label for="username">Username:</label>
+                            <input type="text" id="username" name="username" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="password">Password:</label>
+                            <input type="password" id="password" name="password" required>
+                        </div>
+
+                        <button type="submit" class="submit-btn">Login</button>
+                    </form>
+                    <div id="loginMessage"></div>
+                    <div class="register-option">
+                        <p>Don't have an account?</p>
+                        <button id="showRegisterForm" class="display-btn">Register New Account</button>
+                    </div>
+                </div>
+            </div>`;
+
+        // Add login form handler
+        const loginForm = document.getElementById('loginForm');
+        const messageDiv = document.getElementById('loginMessage');
+        
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            try {
+                await UserAPI.login(loginForm);
+                window.location.reload(); // Reload page after successful login
+            } catch (error) {
+                messageDiv.textContent = error.message;
+                messageDiv.style.color = 'red';
+            }
+        });
+
+        // Add register button handler
+        document.getElementById('showRegisterForm').addEventListener('click', () => {
+            accountContainer.innerHTML = `
+                <div class="register-section">
+                    <h2>Create New Account</h2>
+                    <div class="account-form">
+                        <form id="createAccountForm">
+                            <div class="form-group">
+                                <label for="username">Username:</label>
+                                <input type="text" id="username" name="username" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="password">Password:</label>
+                                <input type="password" id="password" name="password" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="email">Email:</label>
+                                <input type="email" id="email" name="email" required>
+                            </div>
+
+                            <button type="submit" class="submit-btn">Create Account</button>
+                        </form>
+                        <div id="registerMessage"></div>
+                        <div class="login-option">
+                            <p>Already have an account?</p>
+                            <button id="showLoginForm" class="display-btn">Back to Login</button>
+                        </div>
+                    </div>
+                </div>`;
+
+            // Add create account form handler
+            const createAccountForm = document.getElementById('createAccountForm');
+            const registerMessage = document.getElementById('registerMessage');
+            
+            createAccountForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                try {
+                    await UserAPI.createAccount(createAccountForm);
+                    registerMessage.textContent = 'Account created successfully! You can now login.';
+                    registerMessage.style.color = 'green';
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 2000);
+                } catch (error) {
+                    registerMessage.textContent = error.message;
+                    registerMessage.style.color = 'red';
+                }
+            });
+
+            // Add back to login handler
+            document.getElementById('showLoginForm').addEventListener('click', () => {
+                window.location.reload();
+            });
+        });
+    } else {
+        // Show user account information
+        accountContainer.innerHTML = `
+            <h2>Account Settings</h2>
+            <div class="account-form">
+                <div class="user-info">
+                    <h3>Welcome, ${currentUser.username}!</h3>
+                    <p>Email: ${currentUser.email}</p>
+                    <p>Role: ${currentUser.role}</p>
+                </div>
+                <button id="logoutButton" class="display-btn">Logout</button>
+            </div>`;
+
+        // Add logout handler
+        document.getElementById('logoutButton').addEventListener('click', () => {
+            UserAPI.logout();
+        });
+    }
+});
+</script>
+=== ./views/pages/forums.html ===
+
+<section class="forum-section">
+    <h2>Forums</h2>
+    <button id="CreateForumButton" class="submit-btn">Create New Forum</button>
+    <div class="forum-list">
+        <div class="forum-category">
+            <h3>Academic Discussions</h3>
+            <ul>
+                <!-- Forums will be loaded here -->
+            </ul>
         </div>
     </div>
 </section>
@@ -2378,158 +2668,6 @@ document.addEventListener('DOMContentLoaded', function() {
     <section class="gd-section">
     </section>
 </div>
-=== ./package-lock.json ===
-
-{
-  "name": "SCSUForum",
-  "lockfileVersion": 3,
-  "requires": true,
-  "packages": {
-    "": {
-      "dependencies": {
-        "cookie-parser": "^1.4.7",
-        "express-session": "^1.18.1"
-      }
-    },
-    "node_modules/cookie": {
-      "version": "0.7.2",
-      "resolved": "https://registry.npmjs.org/cookie/-/cookie-0.7.2.tgz",
-      "integrity": "sha512-yki5XnKuf750l50uGTllt6kKILY4nQ1eNIQatoXEByZ5dWgnKqbnqmTrBE5B4N7lrMJKQ2ytWMiTO2o0v6Ew/w==",
-      "license": "MIT",
-      "engines": {
-        "node": ">= 0.6"
-      }
-    },
-    "node_modules/cookie-parser": {
-      "version": "1.4.7",
-      "resolved": "https://registry.npmjs.org/cookie-parser/-/cookie-parser-1.4.7.tgz",
-      "integrity": "sha512-nGUvgXnotP3BsjiLX2ypbQnWoGUPIIfHQNZkkC668ntrzGWEZVW70HDEB1qnNGMicPje6EttlIgzo51YSwNQGw==",
-      "license": "MIT",
-      "dependencies": {
-        "cookie": "0.7.2",
-        "cookie-signature": "1.0.6"
-      },
-      "engines": {
-        "node": ">= 0.8.0"
-      }
-    },
-    "node_modules/cookie-signature": {
-      "version": "1.0.6",
-      "resolved": "https://registry.npmjs.org/cookie-signature/-/cookie-signature-1.0.6.tgz",
-      "integrity": "sha512-QADzlaHc8icV8I7vbaJXJwod9HWYp8uCqf1xa4OfNu1T7JVxQIrUgOWtHdNDtPiywmFbiS12VjotIXLrKM3orQ==",
-      "license": "MIT"
-    },
-    "node_modules/debug": {
-      "version": "2.6.9",
-      "resolved": "https://registry.npmjs.org/debug/-/debug-2.6.9.tgz",
-      "integrity": "sha512-bC7ElrdJaJnPbAP+1EotYvqZsb3ecl5wi6Bfi6BJTUcNowp6cvspg0jXznRTKDjm/E7AdgFBVeAPVMNcKGsHMA==",
-      "license": "MIT",
-      "dependencies": {
-        "ms": "2.0.0"
-      }
-    },
-    "node_modules/depd": {
-      "version": "2.0.0",
-      "resolved": "https://registry.npmjs.org/depd/-/depd-2.0.0.tgz",
-      "integrity": "sha512-g7nH6P6dyDioJogAAGprGpCtVImJhpPk/roCzdb3fIh61/s/nPsfR6onyMwkCAR/OlC3yBC0lESvUoQEAssIrw==",
-      "license": "MIT",
-      "engines": {
-        "node": ">= 0.8"
-      }
-    },
-    "node_modules/express-session": {
-      "version": "1.18.1",
-      "resolved": "https://registry.npmjs.org/express-session/-/express-session-1.18.1.tgz",
-      "integrity": "sha512-a5mtTqEaZvBCL9A9aqkrtfz+3SMDhOVUnjafjo+s7A9Txkq+SVX2DLvSp1Zrv4uCXa3lMSK3viWnh9Gg07PBUA==",
-      "license": "MIT",
-      "dependencies": {
-        "cookie": "0.7.2",
-        "cookie-signature": "1.0.7",
-        "debug": "2.6.9",
-        "depd": "~2.0.0",
-        "on-headers": "~1.0.2",
-        "parseurl": "~1.3.3",
-        "safe-buffer": "5.2.1",
-        "uid-safe": "~2.1.5"
-      },
-      "engines": {
-        "node": ">= 0.8.0"
-      }
-    },
-    "node_modules/express-session/node_modules/cookie-signature": {
-      "version": "1.0.7",
-      "resolved": "https://registry.npmjs.org/cookie-signature/-/cookie-signature-1.0.7.tgz",
-      "integrity": "sha512-NXdYc3dLr47pBkpUCHtKSwIOQXLVn8dZEuywboCOJY/osA0wFSLlSawr3KN8qXJEyX66FcONTH8EIlVuK0yyFA==",
-      "license": "MIT"
-    },
-    "node_modules/ms": {
-      "version": "2.0.0",
-      "resolved": "https://registry.npmjs.org/ms/-/ms-2.0.0.tgz",
-      "integrity": "sha512-Tpp60P6IUJDTuOq/5Z8cdskzJujfwqfOTkrwIwj7IRISpnkJnT6SyJ4PCPnGMoFjC9ddhal5KVIYtAt97ix05A==",
-      "license": "MIT"
-    },
-    "node_modules/on-headers": {
-      "version": "1.0.2",
-      "resolved": "https://registry.npmjs.org/on-headers/-/on-headers-1.0.2.tgz",
-      "integrity": "sha512-pZAE+FJLoyITytdqK0U5s+FIpjN0JP3OzFi/u8Rx+EV5/W+JTWGXG8xFzevE7AjBfDqHv/8vL8qQsIhHnqRkrA==",
-      "license": "MIT",
-      "engines": {
-        "node": ">= 0.8"
-      }
-    },
-    "node_modules/parseurl": {
-      "version": "1.3.3",
-      "resolved": "https://registry.npmjs.org/parseurl/-/parseurl-1.3.3.tgz",
-      "integrity": "sha512-CiyeOxFT/JZyN5m0z9PfXw4SCBJ6Sygz1Dpl0wqjlhDEGGBP1GnsUVEL0p63hoG1fcj3fHynXi9NYO4nWOL+qQ==",
-      "license": "MIT",
-      "engines": {
-        "node": ">= 0.8"
-      }
-    },
-    "node_modules/random-bytes": {
-      "version": "1.0.0",
-      "resolved": "https://registry.npmjs.org/random-bytes/-/random-bytes-1.0.0.tgz",
-      "integrity": "sha512-iv7LhNVO047HzYR3InF6pUcUsPQiHTM1Qal51DcGSuZFBil1aBBWG5eHPNek7bvILMaYJ/8RU1e8w1AMdHmLQQ==",
-      "license": "MIT",
-      "engines": {
-        "node": ">= 0.8"
-      }
-    },
-    "node_modules/safe-buffer": {
-      "version": "5.2.1",
-      "resolved": "https://registry.npmjs.org/safe-buffer/-/safe-buffer-5.2.1.tgz",
-      "integrity": "sha512-rp3So07KcdmmKbGvgaNxQSJr7bGVSVk5S9Eq1F+ppbRo70+YeaDxkw5Dd8NPN+GD6bjnYm2VuPuCXmpuYvmCXQ==",
-      "funding": [
-        {
-          "type": "github",
-          "url": "https://github.com/sponsors/feross"
-        },
-        {
-          "type": "patreon",
-          "url": "https://www.patreon.com/feross"
-        },
-        {
-          "type": "consulting",
-          "url": "https://feross.org/support"
-        }
-      ],
-      "license": "MIT"
-    },
-    "node_modules/uid-safe": {
-      "version": "2.1.5",
-      "resolved": "https://registry.npmjs.org/uid-safe/-/uid-safe-2.1.5.tgz",
-      "integrity": "sha512-KPHm4VL5dDXKz01UuEd88Df+KzynaohSL9fBh096KWAxSKZQDI2uBrVqtvRM4rwrIrRRKsdLNML/lnaaVSRioA==",
-      "license": "MIT",
-      "dependencies": {
-        "random-bytes": "~1.0.0"
-      },
-      "engines": {
-        "node": ">= 0.8"
-      }
-    }
-  }
-}
-
 === ./README.md ===
 
 # SCSU Student Forum
@@ -2689,11 +2827,157 @@ The application implements consistent error handling:
 ## License
 
 [Add appropriate license information]
-=== ./to-do.txt ===
+=== ./package-lock.json ===
 
-Imporant
-- Add post id to the post to make it easier to find the post when liking / disliking
-- need functioni to communicate with server to add likes
+{
+  "name": "SCSUForum",
+  "lockfileVersion": 3,
+  "requires": true,
+  "packages": {
+    "": {
+      "dependencies": {
+        "cookie-parser": "^1.4.7",
+        "express-session": "^1.18.1"
+      }
+    },
+    "node_modules/cookie": {
+      "version": "0.7.2",
+      "resolved": "https://registry.npmjs.org/cookie/-/cookie-0.7.2.tgz",
+      "integrity": "sha512-yki5XnKuf750l50uGTllt6kKILY4nQ1eNIQatoXEByZ5dWgnKqbnqmTrBE5B4N7lrMJKQ2ytWMiTO2o0v6Ew/w==",
+      "license": "MIT",
+      "engines": {
+        "node": ">= 0.6"
+      }
+    },
+    "node_modules/cookie-parser": {
+      "version": "1.4.7",
+      "resolved": "https://registry.npmjs.org/cookie-parser/-/cookie-parser-1.4.7.tgz",
+      "integrity": "sha512-nGUvgXnotP3BsjiLX2ypbQnWoGUPIIfHQNZkkC668ntrzGWEZVW70HDEB1qnNGMicPje6EttlIgzo51YSwNQGw==",
+      "license": "MIT",
+      "dependencies": {
+        "cookie": "0.7.2",
+        "cookie-signature": "1.0.6"
+      },
+      "engines": {
+        "node": ">= 0.8.0"
+      }
+    },
+    "node_modules/cookie-signature": {
+      "version": "1.0.6",
+      "resolved": "https://registry.npmjs.org/cookie-signature/-/cookie-signature-1.0.6.tgz",
+      "integrity": "sha512-QADzlaHc8icV8I7vbaJXJwod9HWYp8uCqf1xa4OfNu1T7JVxQIrUgOWtHdNDtPiywmFbiS12VjotIXLrKM3orQ==",
+      "license": "MIT"
+    },
+    "node_modules/debug": {
+      "version": "2.6.9",
+      "resolved": "https://registry.npmjs.org/debug/-/debug-2.6.9.tgz",
+      "integrity": "sha512-bC7ElrdJaJnPbAP+1EotYvqZsb3ecl5wi6Bfi6BJTUcNowp6cvspg0jXznRTKDjm/E7AdgFBVeAPVMNcKGsHMA==",
+      "license": "MIT",
+      "dependencies": {
+        "ms": "2.0.0"
+      }
+    },
+    "node_modules/depd": {
+      "version": "2.0.0",
+      "resolved": "https://registry.npmjs.org/depd/-/depd-2.0.0.tgz",
+      "integrity": "sha512-g7nH6P6dyDioJogAAGprGpCtVImJhpPk/roCzdb3fIh61/s/nPsfR6onyMwkCAR/OlC3yBC0lESvUoQEAssIrw==",
+      "license": "MIT",
+      "engines": {
+        "node": ">= 0.8"
+      }
+    },
+    "node_modules/express-session": {
+      "version": "1.18.1",
+      "resolved": "https://registry.npmjs.org/express-session/-/express-session-1.18.1.tgz",
+      "integrity": "sha512-a5mtTqEaZvBCL9A9aqkrtfz+3SMDhOVUnjafjo+s7A9Txkq+SVX2DLvSp1Zrv4uCXa3lMSK3viWnh9Gg07PBUA==",
+      "license": "MIT",
+      "dependencies": {
+        "cookie": "0.7.2",
+        "cookie-signature": "1.0.7",
+        "debug": "2.6.9",
+        "depd": "~2.0.0",
+        "on-headers": "~1.0.2",
+        "parseurl": "~1.3.3",
+        "safe-buffer": "5.2.1",
+        "uid-safe": "~2.1.5"
+      },
+      "engines": {
+        "node": ">= 0.8.0"
+      }
+    },
+    "node_modules/express-session/node_modules/cookie-signature": {
+      "version": "1.0.7",
+      "resolved": "https://registry.npmjs.org/cookie-signature/-/cookie-signature-1.0.7.tgz",
+      "integrity": "sha512-NXdYc3dLr47pBkpUCHtKSwIOQXLVn8dZEuywboCOJY/osA0wFSLlSawr3KN8qXJEyX66FcONTH8EIlVuK0yyFA==",
+      "license": "MIT"
+    },
+    "node_modules/ms": {
+      "version": "2.0.0",
+      "resolved": "https://registry.npmjs.org/ms/-/ms-2.0.0.tgz",
+      "integrity": "sha512-Tpp60P6IUJDTuOq/5Z8cdskzJujfwqfOTkrwIwj7IRISpnkJnT6SyJ4PCPnGMoFjC9ddhal5KVIYtAt97ix05A==",
+      "license": "MIT"
+    },
+    "node_modules/on-headers": {
+      "version": "1.0.2",
+      "resolved": "https://registry.npmjs.org/on-headers/-/on-headers-1.0.2.tgz",
+      "integrity": "sha512-pZAE+FJLoyITytdqK0U5s+FIpjN0JP3OzFi/u8Rx+EV5/W+JTWGXG8xFzevE7AjBfDqHv/8vL8qQsIhHnqRkrA==",
+      "license": "MIT",
+      "engines": {
+        "node": ">= 0.8"
+      }
+    },
+    "node_modules/parseurl": {
+      "version": "1.3.3",
+      "resolved": "https://registry.npmjs.org/parseurl/-/parseurl-1.3.3.tgz",
+      "integrity": "sha512-CiyeOxFT/JZyN5m0z9PfXw4SCBJ6Sygz1Dpl0wqjlhDEGGBP1GnsUVEL0p63hoG1fcj3fHynXi9NYO4nWOL+qQ==",
+      "license": "MIT",
+      "engines": {
+        "node": ">= 0.8"
+      }
+    },
+    "node_modules/random-bytes": {
+      "version": "1.0.0",
+      "resolved": "https://registry.npmjs.org/random-bytes/-/random-bytes-1.0.0.tgz",
+      "integrity": "sha512-iv7LhNVO047HzYR3InF6pUcUsPQiHTM1Qal51DcGSuZFBil1aBBWG5eHPNek7bvILMaYJ/8RU1e8w1AMdHmLQQ==",
+      "license": "MIT",
+      "engines": {
+        "node": ">= 0.8"
+      }
+    },
+    "node_modules/safe-buffer": {
+      "version": "5.2.1",
+      "resolved": "https://registry.npmjs.org/safe-buffer/-/safe-buffer-5.2.1.tgz",
+      "integrity": "sha512-rp3So07KcdmmKbGvgaNxQSJr7bGVSVk5S9Eq1F+ppbRo70+YeaDxkw5Dd8NPN+GD6bjnYm2VuPuCXmpuYvmCXQ==",
+      "funding": [
+        {
+          "type": "github",
+          "url": "https://github.com/sponsors/feross"
+        },
+        {
+          "type": "patreon",
+          "url": "https://www.patreon.com/feross"
+        },
+        {
+          "type": "consulting",
+          "url": "https://feross.org/support"
+        }
+      ],
+      "license": "MIT"
+    },
+    "node_modules/uid-safe": {
+      "version": "2.1.5",
+      "resolved": "https://registry.npmjs.org/uid-safe/-/uid-safe-2.1.5.tgz",
+      "integrity": "sha512-KPHm4VL5dDXKz01UuEd88Df+KzynaohSL9fBh096KWAxSKZQDI2uBrVqtvRM4rwrIrRRKsdLNML/lnaaVSRioA==",
+      "license": "MIT",
+      "dependencies": {
+        "random-bytes": "~1.0.0"
+      },
+      "engines": {
+        "node": ">= 0.8"
+      }
+    }
+  }
+}
 
 === ./package.json ===
 
@@ -2703,3 +2987,48 @@ Imporant
     "express-session": "^1.18.1"
   }
 }
+
+=== ./project_contents.txt ===
+
+
+=== ./server.js ===
+
+/**
+ * server.js
+ * Main server entry point. Initializes HTTP server and starts listening for requests.
+ */
+
+const http = require('http');
+const express = require('express');
+const session = require('express-session');
+const cookieParser = require('cookie-parser');
+const app = require('./app');
+
+const server = express();
+
+server.use(cookieParser());
+server.use(session({
+    secret:'your-secret-key',
+    resave: false,
+    saveUninitialized: true,
+    cookie: {
+        maxAge: 24 * 60 * 60 * 1000
+    }
+}));
+
+server.use((req, res) => {
+    app(req,res);
+});
+
+const port = process.env.PORT || 80;
+
+server.listen(port, () => {
+    console.log(`Server running on port ${port}`);
+    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`Server time: ${new Date().toISOString()}`);
+});
+=== ./to-do.txt ===
+
+Imporant
+- Add post id to the post to make it easier to find the post when liking / disliking
+- need functioni to communicate with server to add likes
