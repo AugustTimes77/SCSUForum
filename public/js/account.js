@@ -1,10 +1,3 @@
-<section class="account-section">
-    <div id="account-container">
-        <!-- Content will be dynamically loaded here -->
-    </div>
-</section>
-
-<script>
 document.addEventListener('DOMContentLoaded', function() {
     const currentUser = UserAPI.getCurrentUser();
     const accountContainer = document.getElementById('account-container');
@@ -44,7 +37,7 @@ document.addEventListener('DOMContentLoaded', function() {
             e.preventDefault();
             try {
                 await UserAPI.login(loginForm);
-                window.location.reload(); // Reload page after successful login
+                window.location.reload();
             } catch (error) {
                 messageDiv.textContent = error.message;
                 messageDiv.style.color = 'red';
@@ -126,4 +119,3 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
-</script>

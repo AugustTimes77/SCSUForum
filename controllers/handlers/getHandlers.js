@@ -13,6 +13,13 @@ const Forum = require('../../models/Forum');
 const getHandlers = {
     async handleStaticFile(req, res) {
         try {
+            // Handle favicon.ico request
+            if (req.url === '/favicon.ico') {
+                res.writeHead(204); // No content
+                res.end();
+                return;
+            }
+
             const filePath = path.join(__dirname, '../../public', req.url);
             const extname = path.extname(filePath).toLowerCase();
             const contentType = mimeTypes[extname] || 'application/octet-stream';
@@ -53,15 +60,20 @@ const getHandlers = {
         try {
             let pageName = req.url === '/' ? 'index' : req.url.match(/^\/([^/]+)/)[1];
             let pageContent;
-
-            if (pageName === 'index') {
+    
+            // Special handling for the account page
+            if (pageName === 'account') {
+                pageContent = await fs.readFile(path.join(__dirname, '../../views/pages/account.html'), 'utf8');
+                const template = templateService.getTemplateHTML();
+                pageContent = template.replace('{{content}}', pageContent);
+            } else if (pageName === 'index') {
                 pageContent = await fs.readFile(path.join(__dirname, '../../views/pages/index.html'), 'utf8');
             } else {
                 const template = templateService.getTemplateHTML();
                 const content = await templateService.readPageContent(pageName);
                 pageContent = template.replace('{{content}}', content);
             }
-
+    
             res.writeHead(200, { 'Content-Type': 'text/html' });
             res.end(pageContent);
         } catch (error) {
@@ -124,11 +136,54 @@ const getHandlers = {
             }
         }
     },
+ 
+    async handleForum(req, res) {
+        try {
+            const forumIdentifier = req.url.split('/forum/')[1];
+            let forum;
+
+            if (/^\d+$/.test(forumIdentifier)) {
+                forum = await Forum.findById(forumIdentifier);
+            } else {
+                forum= await Forum.findByName(decodeURIComponent(forumIdentifier));
+            }
+
+            if (!forum) {
+                
+                const notFoundContent = await fs.readFile(
+                    path.join(__dirname, '../../views/pages/404.html'), 
+                    'utf8'
+                );
+                res.writeHead(404, { 'Content-Type': 'text/html' });
+                res.end(notFoundContent);
+                return;
+            }
+
+            const posts = await Forum.findPostsById(forum.forum_id);
+            
+            const template = await templateService.readTemplateContent('forumTemplate');
+            const processedTemplate = template
+                .replace('FORUM NAME', forum.name)
+                .replace('FORUM DESCRIPTION', forum.description);
+
+            const mainTemplate = templateService.getTemplateHTML();
+
+            const fullPage = mainTemplate.replace(`,{{content}}`, processedForumContent);
+
+            res.writeHead(200, { 'Content-Type': 'text/html' });
+            res.end(processedTemplate);
+
+        } catch (error) {
+            console.error('Error handling forum request:', error);
+            res.writeHead(500, { 'Content-Type': 'text/html' });
+            res.end('Internal Server Error');
+        }
+    },
+
     async handleTemplate(req, res) {
         try {
             const templateName = req.url.split('/templates/')[1];
             console.log('Loading template:', templateName);
-            
             const content = await fs.readFile(
                 path.join(__dirname, '../../views/templates', `${templateName}.html`),
                 'utf8'

@@ -1,4 +1,10 @@
 /* Base styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
 body {
     font-family: Arial, sans-serif;
     margin: 0;
@@ -6,6 +12,7 @@ body {
     display: flex;
     flex-direction: column;
     background-color: #f3f4f6;
+    overflow-x: hidden; /* Prevent horizontal scroll */
 }
 
 /* Header */
@@ -19,8 +26,10 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    max-width: 1200px;
+    max-width: 1800px;
     margin: 0 auto;
+    padding: 0 2rem;
+    box-sizing: border-box; /* Added to prevent overflow */
 }
 
 .home-link {
@@ -45,8 +54,10 @@ body {
 .body {
     flex: 1;
     padding: 2rem;
-    max-width: 1200px;
+    max-width: 1800px;
     margin: 0 auto;
+    width: 95%;
+    box-sizing: border-box; /* Added to prevent overflow */
 }
 
 /* Forum section */
@@ -56,24 +67,114 @@ body {
     padding: 1.5rem;
     margin-bottom: 2rem;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    width: 100%;
+    box-sizing: border-box; /* Added to prevent overflow */
 }
 
-/* TEMPLATES -- by Tony */
+/* Forum body - expanded layout */
+.forum-body {
+    width: 100%;
+    max-width: 100%;
+    margin: 0 auto;
+    box-sizing: border-box; /* Added to prevent overflow */
+}
 
+/* Forum category styling */
+.forum-category ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    width: 100%;
+}
+
+.forum-category li {
+    margin-bottom: 1rem;
+    padding: 1rem;
+    background-color: #f8f9fa;
+    border-radius: 0.5rem;
+    transition: background-color 0.2s;
+}
+
+.forum-category li:hover {
+    background-color: #e9ecef;
+}
+
+.forum-link {
+    color: #003399;
+    text-decoration: none;
+    font-weight: bold;
+    font-size: 1.1rem;
+}
+
+.forum-description {
+    margin: 0.5rem 0 0 0;
+    color: #666;
+}
+
+/* Forum posts section */
 .gd-section {
-
-	background-color: #D1F6FF;
+    background-color: #D1F6FF;
     border-radius: 0.25rem;
     box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
-    padding: 1.5rem;
+    padding: 2rem;
     margin-bottom: 2rem;
-    align-content: center;
-	text-align: center;
+    width: 100%;
+    box-sizing: border-box; /* Added to prevent overflow */
+    border-style: ridge;
+    border-width: 3px;
+}
 
-	/* Setting border properties */
-	border-style: ridge;
-	border-width: 3px;
+/* Post items styling */
+.post-item {
+    background-color: white;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    width: 100%;
+    box-sizing: border-box; /* Added to prevent overflow */
+}
 
+.post-item h3 {
+    margin-top: 0;
+    color: #003399;
+}
+
+.post-item p {
+    color: #333;
+    line-height: 1.6;
+}
+
+.post-item small {
+    color: #666;
+    display: block;
+    margin-top: 1rem;
+}
+
+.post-item .main-post{
+    list-style: none;
+}
+
+.post-item .sub-post{
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    gap: 1rem;
+}
+
+.post-item button {
+    max-height: max-content;
+}
+
+
+/* Remove default list styling for posts */
+.gd-section ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    width: 100%;
+    
 }
 
 /* Account form */
@@ -81,6 +182,10 @@ body {
     max-width: 400px;
     margin: 20px auto;
     padding: 20px;
+    background-color: white;
+    border-radius: 0.5rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    box-sizing: border-box; /* Added to prevent overflow */
 }
 
 .form-group {
@@ -90,6 +195,8 @@ body {
 .form-group label {
     display: block;
     margin-bottom: 5px;
+    color: #333;
+    font-weight: 500;
 }
 
 .form-group input {
@@ -97,6 +204,13 @@ body {
     padding: 8px;
     border: 1px solid #ddd;
     border-radius: 4px;
+    box-sizing: border-box;
+}
+
+.form-group input:focus {
+    border-color: #003399;
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(0, 51, 153, 0.1);
 }
 
 .submit-btn, .display-btn {
@@ -108,6 +222,32 @@ body {
     cursor: pointer;
     width: 100%;
     margin-top: 10px;
+    font-size: 1rem;
+    transition: background-color 0.2s;
+}
+
+.submit-btn:hover, .display-btn:hover {
+    background-color: #002266;
+}
+
+/* Messages section */
+.messages-section {
+    background-color: white;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    width: 100%;
+    box-sizing: border-box; /* Added to prevent overflow */
+}
+
+.messages-container {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.message-list {
+    padding: 1rem;
 }
 
 /* Footer */
@@ -117,4 +257,62 @@ footer {
     text-align: center;
     padding: 1rem;
     margin-top: auto;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1200px) {
+    .body {
+        width: 90%;
+        padding: 1rem;
+    }
+    
+    .header .container {
+        padding: 0 1rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .body {
+        width: 95%;
+        padding: 0.5rem;
+    }
+    
+    .gd-section {
+        padding: 1rem;
+    }
+    
+    .header .container {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .header nav ul {
+        margin-top: 1rem;
+        justify-content: center;
+    }
+    
+    .account-form {
+        margin: 10px;
+        padding: 15px;
+    }
+}
+
+/* Error messages */
+.error-message {
+    color: #dc3545;
+    background-color: #f8d7da;
+    border: 1px solid #f5c6cb;
+    border-radius: 0.25rem;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+/* Success messages */
+.success-message {
+    color: #28a745;
+    background-color: #d4edda;
+    border: 1px solid #c3e6cb;
+    border-radius: 0.25rem;
+    padding: 1rem;
+    margin-bottom: 1rem;
 }
