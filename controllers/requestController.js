@@ -32,6 +32,10 @@ const routes = {
         default: 'handlePage'
     },
     POST: {
+        createUser: {
+            pattern: /^\/api\/users\/create$/,
+            handler: 'handleCreateUser'
+        },
         login: {
             pattern: /^\/api\/users\/login$/,
             handler: 'handleLogin'
