@@ -173,25 +173,65 @@ const ForumAPI = {
         }
     },
 
+    
     async createPost(postData) {
         try {
+            // Get current user from localStorage
+            const currentUser = UserAPI.getCurrentUser();
+            if (!currentUser) {
+                throw new Error('User must be logged in to create posts');
+            }
+    
+            // Add user_id to post data
+            const postWithUser = {
+                ...postData,
+                user_id: currentUser.id  // Make sure this matches the property name from login response
+            };
+    
             const response = await fetch('/api/forums/posts/create', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify(postData)
+                body: JSON.stringify(postWithUser)
             });
-
+    
             if (!response.ok) {
                 const error = await response.json();
                 throw new Error(error.message || 'Failed to create post');
             }
-
+    
             const result = await response.json();
             return result;
         } catch (error) {
             console.error('Error creating post:', error);
+            throw error;
+        }
+    },
+
+
+    async createForum(forumData) {
+        try {
+            console.log('Creating forum:', forumData);
+            const response = await fetch('/api/forums/create', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(forumData)
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                console.error('Server error:', errorData);
+                throw new Error(errorData.error || 'Failed to create forum');
+            }
+            
+            const result = await response.json();
+            console.log('Forum created successfully:', result);
+            return result;
+        } catch (error) {
+            console.error('Error in createForum:', error);
             throw error;
         }
     }
@@ -223,21 +263,41 @@ const PostAPI = {
             throw error;
         }
     },
-    displayPosts(posts){
+
+    displayPosts(posts) {
         const contentDiv = document.querySelector('.gd-section');
         if (!contentDiv) return;
+
+        // Get current user from localStorage
+        const currentUser = UserAPI.getCurrentUser();
+        const isAdmin = currentUser?.role === 'admin';
 
         contentDiv.innerHTML = '<h2>Posts</h2><ul>';
         
         if (posts.length === 0) {
             contentDiv.innerHTML += '<li>No posts found</li>';
         } else {
-            
             posts.forEach(post => {
                 contentDiv.innerHTML += `
-                    <div class="post-item" data-post-id="${post.post_id}">  // Add this data attribute
+                    <div class="post-item" data-post-id="${post.post_id}">
                         <li class="main-post">
-                            <h3>${post.title}</h3>
+                            <div class="post-header">
+                                <h3>${post.title}</h3>
+                                <small>Posted by ${post.username || 'Anonymous'} (ID: ${post.user_id})</small>
+                                ${isAdmin ? `
+                                    <button class="delete-post-btn" 
+                                            data-post-id="${post.post_id}"
+                                            style="color: white; 
+                                                   background-color: #dc3545; 
+                                                   border: none;
+                                                   padding: 5px 10px;
+                                                   border-radius: 4px;
+                                                   cursor: pointer;
+                                                   float: right;">
+                                        Delete Post
+                                    </button>
+                                ` : ''}
+                            </div>
                             <p>${post.content}</p>
                         </li>
                         <li class="sub-post">
@@ -252,8 +312,48 @@ const PostAPI = {
         }
         
         contentDiv.innerHTML += '</ul>';
-
         this.attachReactionHandlers();
+        this.attachDeleteHandlers();
+    },
+
+    attachDeleteHandlers() {
+        document.querySelectorAll('.delete-post-btn').forEach(button => {
+            button.addEventListener('click', async (e) => {
+                if (confirm('Are you sure you want to delete this post?')) {
+                    try {
+                        const postId = e.target.dataset.postId;
+                        await this.deletePost(postId);
+                        
+                        // Remove the post from the UI
+                        const postElement = e.target.closest('.post-item');
+                        postElement.remove();
+                    } catch (error) {
+                        alert('Failed to delete post: ' + error.message);
+                    }
+                }
+            });
+        });
+    },
+
+    async deletePost(postId) {
+        try {
+            const response = await fetch(`/api/posts/${postId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to delete post');
+            }
+
+            return await response.json();
+        } catch (error) {
+            console.error('Error deleting post:', error);
+            throw error;
+        }
     },
 
     async likePost(postId, isLike) {
@@ -313,3 +413,9 @@ const PostAPI = {
 const MessageAPI = {
     // Message methods will go here
 };
+
+// At the end of api.js, after all your API definitions
+window.UserAPI = UserAPI;
+window.ForumAPI = ForumAPI;
+window.PostAPI = PostAPI;
+window.MessageAPI = MessageAPI;

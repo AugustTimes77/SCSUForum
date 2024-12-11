@@ -290,7 +290,75 @@ const PageHandlers = {
                     }
                 });
             }
-    
+            document.getElementById('CreateForumButton')?.addEventListener('click', () => {
+                const forumFormHTML = `
+                    <div class="forum-form-container">
+                        <div class="post-item">
+                            <h3>Create New Forum</h3>
+                            <form id="createForumForm" class="forum-form">
+                                <div class="form-group">
+                                    <label for="forumName">Forum Name:</label>
+                                    <input type="text" 
+                                           id="forumName" 
+                                           name="name" 
+                                           required
+                                           class="form-control">
+                                </div>
+                                <div class="form-group">
+                                    <label for="forumDescription">Description:</label>
+                                    <textarea id="forumDescription" 
+                                            name="description" 
+                                            required
+                                            class="form-control"
+                                            rows="4"></textarea>
+                                </div>
+                                <div class="button-group">
+                                    <button type="submit" class="submit-btn">Create Forum</button>
+                                    <button type="button" class="display-btn" id="cancelForum">Cancel</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                `;
+            
+                document.querySelector('.forum-section').insertAdjacentHTML('afterbegin', forumFormHTML);
+            
+                document.getElementById('cancelForum').addEventListener('click', () => {
+                    document.querySelector('.forum-form-container').remove();
+                });
+            
+                document.getElementById('createForumForm').addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const formData = {
+                        name: document.getElementById('forumName').value,
+                        description: document.getElementById('forumDescription').value
+                    };
+            
+                    try {
+                        await ForumAPI.createForum(formData);
+                        document.querySelector('.forum-form-container').remove();
+                        // Refresh the forums list
+                        const forums = await ForumAPI.fetchForums();
+                        // Update the UI with new forums
+                        const forumList = document.querySelector('.forum-category ul');
+                        if (forumList) {
+                            forumList.innerHTML = forums.map(forum => `
+                                <li>
+                                    <a href="/forum/${forum.forum_id}" 
+                                       class="forum-link" 
+                                       data-forum-id="${forum.forum_id}">
+                                        ${forum.name}
+                                    </a>
+                                    <p class="forum-description">${forum.description}</p>
+                                </li>
+                            `).join('');
+                        }
+                    } catch (error) {
+                        console.error('Error creating forum:', error);
+                        alert('Failed to create forum. Please try again.');
+                    }
+                });
+            });
         } catch (error) {
             // Handle any errors that occur during forum page initialization
             console.error('Error initializing forum page:', error);

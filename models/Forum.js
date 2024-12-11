@@ -33,7 +33,13 @@ class Forum {
     static async findPostsById(id) {
         try {
             console.log('Attempting to fetch posts with forum id:', id);
-            const [rows] = await db.pool.query('SELECT post_id, forum_id, title, content, created_at, likes, dislikes FROM posts WHERE forum_id = ? ORDER BY created_at DESC',
+            const [rows] = await db.pool.query(
+                `SELECT p.post_id, p.forum_id, p.user_id, p.title, p.content, 
+                 p.created_at, p.likes, p.dislikes, u.username 
+                 FROM posts p 
+                 LEFT JOIN users u ON p.user_id = u.user_id 
+                 WHERE p.forum_id = ? 
+                 ORDER BY p.created_at DESC`,
                 [id]
             );
             return rows;
@@ -81,40 +87,43 @@ class Forum {
         }
     }
 
-    static async likePost(postId, isLike){
+    static async likePost(postId, isLike) {
         try {
             const connection = await db.pool.getConnection();
             await connection.beginTransaction();
-
+    
             try {
+                // First check if post exists
                 const [post] = await connection.query(
                     'SELECT likes, dislikes FROM posts WHERE post_id = ?',
                     [postId]
                 );
-                if (!post || post.length === 0){
+    
+                if (!post || post.length === 0) {
                     throw new Error('Post not found');
                 }
-
+    
+                // Update the appropriate counter
                 let query;
                 if (isLike) {
                     query = 'UPDATE posts SET likes = likes + 1 WHERE post_id = ?';
                 } else {
                     query = 'UPDATE posts SET dislikes = dislikes + 1 WHERE post_id = ?';
                 }
-
+    
                 await connection.query(query, [postId]);
-
                 await connection.commit();
-
+    
+                // Get updated post data
                 const [updatedPost] = await connection.query(
                     'SELECT post_id, likes, dislikes FROM posts WHERE post_id = ?',
                     [postId]
                 );
-
+    
                 connection.release();
                 return updatedPost[0];
-
-            } catch(error){
+    
+            } catch (error) {
                 await connection.rollback();
                 connection.release();
                 throw error;
@@ -122,6 +131,29 @@ class Forum {
         } catch (error) {
             console.error('Database error in likePost:', error.message);
             throw new Error(`Database error in likePost: ${error.message}`);
+        }
+    }
+
+    static async create(forumData) {
+        try {
+            console.log('Attempting to create new forum:', forumData);
+            
+            const [result] = await db.pool.query(
+                'INSERT INTO forums (name, description) VALUES (?, ?)',
+                [forumData.name, forumData.description]
+            );
+            
+            // Fetch and return the newly created forum
+            const [newForum] = await db.pool.query(
+                'SELECT forum_id, name, description FROM forums WHERE forum_id = ?',
+                [result.insertId]
+            );
+    
+            console.log('Successfully created forum:', newForum[0]);
+            return newForum[0];
+        } catch (error) {
+            console.error('Database error in Forum.create:', error.message);
+            throw new Error(`Database error in create: ${error.message}`);
         }
     }
 }

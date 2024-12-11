@@ -16,6 +16,7 @@
 │   ├── Forum.js
 │   ├── message.js
 │   └── User.js
+├── package.json
 ├── package-lock.json
 ├── project_contents.txt
 ├── public
@@ -40,6 +41,7 @@
     │   ├── account.html
     │   ├── forums.html
     │   ├── index.html
+    │   ├── login.html
     │   └── messages.html
     ├── partials
     │   ├── footer.html
@@ -47,9 +49,8 @@
     └── templates
         └── forumTemplate.html
 
-14 directories, 34 files
+14 directories, 36 files
 === FILE CONTENTS ===
-
 === ./.gitignore ===
 
 node_modules/
@@ -375,13 +376,14 @@ const postHandlers = {
             res.end(JSON.stringify({ error: 'Error creating user' }));
         }
     },
-    // Main API router
+    
     async handleApi(req, res) {
         try {
             // Define API routes
             const routes = {
                 '/api/users/create': this.handleCreateUser,
-                '/api/forums/posts/create': this.handleCreateForumPost
+                '/api/forums/posts/create': this.handleCreateForumPost,
+                '/api/forums/create': this.handleCreateForum  // Add this line
             };
 
             const handler = routes[req.url];
@@ -433,6 +435,116 @@ const postHandlers = {
                 message: error.message
             }));
         }
+    },
+    async handleLogin(req, res) {
+        try {
+            const userData = await parseBody(req);
+            console.log('Login attempt for user:', userData.username); // Debug log
+            
+            // Validate input
+            if (!userData.username || !userData.password) {
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Username and password are required' }));
+                return;
+            }
+
+            try {
+                // Use the pool directly since we're debugging
+                const [rows] = await pool.query(
+                    'SELECT user_id, username, email, role FROM users WHERE username = ? AND password_hash = ?',
+                    [userData.username, userData.password]
+                );
+                
+                console.log('Query result:', rows); // Debug log
+
+                if (!rows || rows.length === 0) {
+                    res.writeHead(401, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ error: 'Invalid username or password' }));
+                    return;
+                }
+
+                const user = rows[0];
+
+                // Set session data
+                req.session = req.session || {};
+                req.session.user = {
+                    id: user.user_id,
+                    username: user.username,
+                    email: user.email,
+                    role: user.role
+                };
+
+                res.writeHead(200, { 
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                });
+                res.end(JSON.stringify({ 
+                    success: true,
+                    user: {
+                        id: user.user_id,
+                        username: user.username,
+                        email: user.email,
+                        role: user.role
+                    }
+                }));
+
+            } catch (dbError) {
+                console.error('Database error:', dbError);
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Database error during login' }));
+            }
+
+        } catch (error) {
+            console.error('Login error:', error);
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Login failed', details: error.message }));
+        }
+    },
+
+    async handleLogout(req, res) {
+        try {
+            req.session.destroy(err => {
+                if (err) {
+                    res.writeHead(500, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ error: 'Logout failed' }));
+                    return;
+                }
+    
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: true }));
+            });
+        } catch (error) {
+            console.error('Logout error:', error);
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Logout failed' }));
+        }
+    },
+
+    async handleCreateForum(req, res) {
+        try {
+            const forumData = await parseBody(req);
+            
+            if (!forumData.name || !forumData.description) {
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Name and description are required' }));
+                return;
+            }
+    
+            const newForum = await Forum.create(forumData);
+            
+            res.writeHead(201, { 
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            });
+            res.end(JSON.stringify({
+                success: true,
+                forum: newForum
+            }));
+        } catch (error) {
+            console.error('Error creating forum:', error);
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Failed to create forum' }));
+        }
     }
 
 };
@@ -467,7 +579,7 @@ const updateHandlers = {
     async handlePostReaction(req, res) {
         try {
             const data = await parseBody(req);
-            const { post_id, isLIke } = data;
+            const { post_id, isLike } = data;
 
             if (!post_id) {
                 res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -522,54 +634,80 @@ const routes = {
             pattern: /^\/forum\/([^/]+)$/,
             handler: 'handleForum'
         },
+        // Add login page route
+        login: {
+            pattern: /^\/login$/,
+            handler: 'handlePage'
+        },
         // Default handler for pages
         default: 'handlePage'
     },
     POST: {
+        // Add login endpoint
+        login: {
+            pattern: /^\/api\/users\/login$/,
+            handler: 'handleLogin'
+        },
+        // Add logout endpoint
+        logout: {
+            pattern: /^\/api\/users\/logout$/,
+            handler: 'handleLogout'
+        },
         createPost: {
             pattern: /^\/api\/forums\/posts\/create$/,
             handler: 'handleCreateForumPost'
         },
-        
         api: {
             pattern: /^\/api\//,
             handler: 'handleApi'
         },
-        
-        // Add more POST routes as needed
+        createForum: {
+            pattern: /^\/api\/forums\/create$/,
+            handler: 'handleApi'
+        },
         default: null
     },
     PUT: {
-        likePost: {
+        // Add this new route
+        postReaction: {
             pattern: /^\/api\/posts\/react$/,
             handler: 'handlePostReaction'
-        },
-        default: null
+        }
     }
 };
 
-// Route matcher function
-function findRoute(method, url) {
-    const methodRoutes = routes[method];
-    if (!methodRoutes) return null;
-
-    // Check each defined route pattern
-    for (const [key, route] of Object.entries(methodRoutes)) {
-        if (key === 'default') continue;
-        if (route.pattern.test(url)) {
-            return route.handler;
-        }
+// Add session checking middleware
+function checkSession(req) {
+    // Public paths that don't require authentication
+    const publicPaths = ['/login', '/account', '/', '/css/', '/js/', '/api/users/login'];
+    
+    if (publicPaths.some(path => req.url.startsWith(path))) {
+        return true;
     }
 
-    // Return default handler if no specific route matches
-    return methodRoutes.default;
+    // Check if user is logged in
+    return req.session && req.session.user;
 }
 
 async function handleRequest(req, res) {
     console.log(`${req.method} request received for: ${req.url}`);
 
     try {
-        // Get handlers for the HTTP method, inside of index.js
+        // Check session for protected routes
+        if (!checkSession(req)) {
+            if (req.url.startsWith('/api/')) {
+                // For API requests, return JSON error
+                res.writeHead(401, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Unauthorized' }));
+            } else {
+                // For page requests, redirect to login
+                res.writeHead(302, { Location: '/login' });
+                res.end();
+            }
+            return;
+        }
+
+        // Get handlers for the HTTP method
         const methodHandlers = handlers[req.method];
 
         // No recognized handler
@@ -596,6 +734,23 @@ async function handleRequest(req, res) {
         res.writeHead(500);
         res.end('Internal Server Error');
     }
+}
+
+// Route matcher function (remains the same)
+function findRoute(method, url) {
+    const methodRoutes = routes[method];
+    if (!methodRoutes) return null;
+
+    // Check each defined route pattern
+    for (const [key, route] of Object.entries(methodRoutes)) {
+        if (key === 'default') continue;
+        if (route.pattern.test(url)) {
+            return route.handler;
+        }
+    }
+
+    // Return default handler if no specific route matches
+    return methodRoutes.default;
 }
 
 module.exports = { handleRequest };
@@ -684,40 +839,43 @@ class Forum {
         }
     }
 
-    static async likePost(postId, isLike){
+    static async likePost(postId, isLike) {
         try {
             const connection = await db.pool.getConnection();
             await connection.beginTransaction();
-
+    
             try {
+                // First check if post exists
                 const [post] = await connection.query(
-                    'SELECT likes, dislikes FROm posts WHERE post_id = ?',
+                    'SELECT likes, dislikes FROM posts WHERE post_id = ?',
                     [postId]
                 );
-                if (!post || post.length === 0){
+    
+                if (!post || post.length === 0) {
                     throw new Error('Post not found');
                 }
-
+    
+                // Update the appropriate counter
                 let query;
                 if (isLike) {
                     query = 'UPDATE posts SET likes = likes + 1 WHERE post_id = ?';
                 } else {
                     query = 'UPDATE posts SET dislikes = dislikes + 1 WHERE post_id = ?';
                 }
-
+    
                 await connection.query(query, [postId]);
-
                 await connection.commit();
-
+    
+                // Get updated post data
                 const [updatedPost] = await connection.query(
                     'SELECT post_id, likes, dislikes FROM posts WHERE post_id = ?',
                     [postId]
                 );
-
+    
                 connection.release();
                 return updatedPost[0];
-
-            } catch(error){
+    
+            } catch (error) {
                 await connection.rollback();
                 connection.release();
                 throw error;
@@ -725,6 +883,29 @@ class Forum {
         } catch (error) {
             console.error('Database error in likePost:', error.message);
             throw new Error(`Database error in likePost: ${error.message}`);
+        }
+    }
+
+    static async create(forumData) {
+        try {
+            console.log('Attempting to create new forum:', forumData);
+            
+            const [result] = await db.pool.query(
+                'INSERT INTO forums (name, description) VALUES (?, ?)',
+                [forumData.name, forumData.description]
+            );
+            
+            // Fetch and return the newly created forum
+            const [newForum] = await db.pool.query(
+                'SELECT forum_id, name, description FROM forums WHERE forum_id = ?',
+                [result.insertId]
+            );
+    
+            console.log('Successfully created forum:', newForum[0]);
+            return newForum[0];
+        } catch (error) {
+            console.error('Database error in Forum.create:', error.message);
+            throw new Error(`Database error in create: ${error.message}`);
         }
     }
 }
@@ -1170,6 +1351,52 @@ const UserAPI = {
         }
         
         contentDiv.innerHTML += '</ul>';
+    },
+
+    async login(form) {
+        try {
+            const formData = new FormData(form);
+            const userData = {
+                username: formData.get('username'),
+                password: formData.get('password')
+            };
+
+            const response = await fetch('/api/users/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(userData)
+            });
+
+            if (!response.ok) {
+                throw new Error('Login failed');
+            }
+
+            const result = await response.json();
+            
+            // Store user info in localStorage for easy access
+            localStorage.setItem('currentUser', JSON.stringify(result.user));
+            
+            // Redirect to forums after successful login
+            window.location.href = '/forums';
+        } catch (error) {
+            alert('Login failed: ' + error.message);
+            throw error;
+        }
+    },
+
+    getCurrentUser() {
+        const userString = localStorage.getItem('currentUser');
+        return userString ? JSON.parse(userString) : null;
+    },
+
+    logout() {
+        localStorage.removeItem('currentUser');
+        fetch('/api/users/logout', { method: 'POST' })
+            .then(() => {
+                window.location.href = '/login';
+            });
     }
 };
 
@@ -1225,14 +1452,27 @@ const ForumAPI = {
         }
     },
 
+    
     async createPost(postData) {
         try {
+            // Get current user from localStorage
+            const currentUser = UserAPI.getCurrentUser();
+            if (!currentUser) {
+                throw new Error('User must be logged in to create posts');
+            }
+
+            // Add user_id to post data
+            const postWithUser = {
+                ...postData,
+                user_id: currentUser.id
+            };
+
             const response = await fetch('/api/forums/posts/create', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify(postData)
+                body: JSON.stringify(postWithUser)
             });
 
             if (!response.ok) {
@@ -1244,6 +1484,33 @@ const ForumAPI = {
             return result;
         } catch (error) {
             console.error('Error creating post:', error);
+            throw error;
+        }
+    },
+
+
+    async createForum(forumData) {
+        try {
+            console.log('Creating forum:', forumData);
+            const response = await fetch('/api/forums/create', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(forumData)
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                console.error('Server error:', errorData);
+                throw new Error(errorData.error || 'Failed to create forum');
+            }
+            
+            const result = await response.json();
+            console.log('Forum created successfully:', result);
+            return result;
+        } catch (error) {
+            console.error('Error in createForum:', error);
             throw error;
         }
     }
@@ -1275,7 +1542,9 @@ const PostAPI = {
             throw error;
         }
     },
-    displayPosts(posts){
+
+
+    displayPosts(posts) {
         const contentDiv = document.querySelector('.gd-section');
         if (!contentDiv) return;
 
@@ -1286,41 +1555,44 @@ const PostAPI = {
         } else {
             posts.forEach(post => {
                 contentDiv.innerHTML += `
-                    <div class="post-item">
-                        <p hidden>${post.forum_id}</p>
-                        <p hidden>${post.post_id}</p>
+                    <div class="post-item" data-post-id="${post.post_id}">
                         <li class="main-post">
-                            <h3>${post.title}</h3>
+                            <div class="post-header">
+                                <h3>${post.title}</h3>
+                                <small>Posted by User ID: ${post.user_id}</small>
+                            </div>
                             <p>${post.content}</p>
                         </li>
                         <li class="sub-post">
                             <button class="reaction-btn like-btn" data-type="like">Like</button>
-                            <span class="likes-count">${post.likes}</span>
-                            <span class="dislikes-count">${post.dislikes}</span>
+                            <span class="likes-count">${post.likes || 0}</span>
+                            <span class="dislikes-count">${post.dislikes || 0}</span>
                             <button class="reaction-btn dislike-btn" data-type="dislike">Dislike</button>
                             <small>Posted on: ${new Date(post.created_at).toLocaleDateString()}</small>
                         </li>
-                    </div>`; // includes post id and forum id
+                    </div>`;
             });
         }
         
         contentDiv.innerHTML += '</ul>';
-
         this.attachReactionHandlers();
     },
 
-    async likePost(postId, isLike){
+    async likePost(postId, isLike) {
         try {
+            console.log('Sending reaction:', { postId, isLike });  // Debug log
+            
             const response = await fetch('/api/posts/react', {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ post_id: postId, isLike})
+                body: JSON.stringify({ post_id: postId, isLike })
             });
 
             if (!response.ok) {
-                throw new Error("Failed to update post reaction");
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to update post reaction');
             }
 
             const result = await response.json();
@@ -1363,6 +1635,12 @@ const PostAPI = {
 const MessageAPI = {
     // Message methods will go here
 };
+
+// At the end of api.js, after all your API definitions
+window.UserAPI = UserAPI;
+window.ForumAPI = ForumAPI;
+window.PostAPI = PostAPI;
+window.MessageAPI = MessageAPI;
 === ./public/js/main.js ===
 
 /**
@@ -1657,7 +1935,75 @@ const PageHandlers = {
                     }
                 });
             }
-    
+            document.getElementById('CreateForumButton')?.addEventListener('click', () => {
+                const forumFormHTML = `
+                    <div class="forum-form-container">
+                        <div class="post-item">
+                            <h3>Create New Forum</h3>
+                            <form id="createForumForm" class="forum-form">
+                                <div class="form-group">
+                                    <label for="forumName">Forum Name:</label>
+                                    <input type="text" 
+                                           id="forumName" 
+                                           name="name" 
+                                           required
+                                           class="form-control">
+                                </div>
+                                <div class="form-group">
+                                    <label for="forumDescription">Description:</label>
+                                    <textarea id="forumDescription" 
+                                            name="description" 
+                                            required
+                                            class="form-control"
+                                            rows="4"></textarea>
+                                </div>
+                                <div class="button-group">
+                                    <button type="submit" class="submit-btn">Create Forum</button>
+                                    <button type="button" class="display-btn" id="cancelForum">Cancel</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                `;
+            
+                document.querySelector('.forum-section').insertAdjacentHTML('afterbegin', forumFormHTML);
+            
+                document.getElementById('cancelForum').addEventListener('click', () => {
+                    document.querySelector('.forum-form-container').remove();
+                });
+            
+                document.getElementById('createForumForm').addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const formData = {
+                        name: document.getElementById('forumName').value,
+                        description: document.getElementById('forumDescription').value
+                    };
+            
+                    try {
+                        await ForumAPI.createForum(formData);
+                        document.querySelector('.forum-form-container').remove();
+                        // Refresh the forums list
+                        const forums = await ForumAPI.fetchForums();
+                        // Update the UI with new forums
+                        const forumList = document.querySelector('.forum-category ul');
+                        if (forumList) {
+                            forumList.innerHTML = forums.map(forum => `
+                                <li>
+                                    <a href="/forum/${forum.forum_id}" 
+                                       class="forum-link" 
+                                       data-forum-id="${forum.forum_id}">
+                                        ${forum.name}
+                                    </a>
+                                    <p class="forum-description">${forum.description}</p>
+                                </li>
+                            `).join('');
+                        }
+                    } catch (error) {
+                        console.error('Error creating forum:', error);
+                        alert('Failed to create forum. Please try again.');
+                    }
+                });
+            });
         } catch (error) {
             // Handle any errors that occur during forum page initialization
             console.error('Error initializing forum page:', error);
@@ -1689,10 +2035,28 @@ document.addEventListener('DOMContentLoaded', () => {
  */
 
 const http = require('http');
+const express = require('express');
+const session = require('express-session');
+const cookieParser = require('cookie-parser');
 const app = require('./app');
 
+const server = express();
+
+server.use(cookieParser());
+server.use(session({
+    secret:'your-secret-key',
+    resave: false,
+    saveUninitialized: true,
+    cookie: {
+        maxAge: 24 * 60 * 60 * 1000
+    }
+}));
+
+server.use((req, res) => {
+    app(req,res);
+});
+
 const port = process.env.PORT || 80;
-const server = http.createServer(app);
 
 server.listen(port, () => {
     console.log(`Server running on port ${port}`);
@@ -1877,22 +2241,12 @@ module.exports = responseHelper;
 
 <section class="forum-section">
     <h2>Forums</h2>
+    <button id="CreateForumButton" class="submit-btn">Create New Forum</button>
     <div class="forum-list">
         <div class="forum-category">
             <h3>Academic Discussions</h3>
             <ul>
-                <li>
-                    <a href="#" class="forum-link">General Discussion</a>
-                    <p class="forum-description">Chat about anything related to SCSU</p>
-                </li>
-                <li>
-                    <a href="#" class="forum-title">Course Registration</a>
-                    <p class="forum-description">Discuss class registration and scheduling</p>
-                </li>
-                <li>
-                    <a href="#" class="forum-title">Study Groups</a>
-                    <p class="forum-description">Find and join study groups</p>
-                </li>
+                <!-- Forums will be loaded here -->
             </ul>
         </div>
     </div>
@@ -1931,6 +2285,70 @@ module.exports = responseHelper;
         </div>
     </div>
 </section>
+=== ./views/pages/login.html ===
+
+<div class="login-section">
+    <h2>Login</h2>
+    <div class="account-form">
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="username">Username:</label>
+                <input type="text" id="username" name="username" required>
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password:</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+
+            <button type="submit" class="submit-btn">Login</button>
+        </form>
+        <div id="loginMessage"></div>
+        <p>Don't have an account? <a href="/account">Create one</a></p>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const loginForm = document.getElementById('loginForm');
+    const messageDiv = document.getElementById('loginMessage');
+
+    loginForm.addEventListener('submit', async function(e) {
+        e.preventDefault(); // This prevents the default form submission
+
+        try {
+            const formData = new FormData(loginForm);
+            const loginData = {
+                username: formData.get('username'),
+                password: formData.get('password')
+            };
+
+            const response = await fetch('/api/users/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(loginData)
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                // Store user info and redirect
+                localStorage.setItem('currentUser', JSON.stringify(data.user));
+                window.location.href = '/forums';
+            } else {
+                messageDiv.textContent = data.error || 'Login failed';
+                messageDiv.style.color = 'red';
+            }
+        } catch (error) {
+            messageDiv.textContent = 'Error connecting to server';
+            messageDiv.style.color = 'red';
+            console.error('Login error:', error);
+        }
+    });
+});
+</script>
 === ./views/partials/footer.html ===
 
 <footer>
@@ -1966,7 +2384,150 @@ module.exports = responseHelper;
   "name": "SCSUForum",
   "lockfileVersion": 3,
   "requires": true,
-  "packages": {}
+  "packages": {
+    "": {
+      "dependencies": {
+        "cookie-parser": "^1.4.7",
+        "express-session": "^1.18.1"
+      }
+    },
+    "node_modules/cookie": {
+      "version": "0.7.2",
+      "resolved": "https://registry.npmjs.org/cookie/-/cookie-0.7.2.tgz",
+      "integrity": "sha512-yki5XnKuf750l50uGTllt6kKILY4nQ1eNIQatoXEByZ5dWgnKqbnqmTrBE5B4N7lrMJKQ2ytWMiTO2o0v6Ew/w==",
+      "license": "MIT",
+      "engines": {
+        "node": ">= 0.6"
+      }
+    },
+    "node_modules/cookie-parser": {
+      "version": "1.4.7",
+      "resolved": "https://registry.npmjs.org/cookie-parser/-/cookie-parser-1.4.7.tgz",
+      "integrity": "sha512-nGUvgXnotP3BsjiLX2ypbQnWoGUPIIfHQNZkkC668ntrzGWEZVW70HDEB1qnNGMicPje6EttlIgzo51YSwNQGw==",
+      "license": "MIT",
+      "dependencies": {
+        "cookie": "0.7.2",
+        "cookie-signature": "1.0.6"
+      },
+      "engines": {
+        "node": ">= 0.8.0"
+      }
+    },
+    "node_modules/cookie-signature": {
+      "version": "1.0.6",
+      "resolved": "https://registry.npmjs.org/cookie-signature/-/cookie-signature-1.0.6.tgz",
+      "integrity": "sha512-QADzlaHc8icV8I7vbaJXJwod9HWYp8uCqf1xa4OfNu1T7JVxQIrUgOWtHdNDtPiywmFbiS12VjotIXLrKM3orQ==",
+      "license": "MIT"
+    },
+    "node_modules/debug": {
+      "version": "2.6.9",
+      "resolved": "https://registry.npmjs.org/debug/-/debug-2.6.9.tgz",
+      "integrity": "sha512-bC7ElrdJaJnPbAP+1EotYvqZsb3ecl5wi6Bfi6BJTUcNowp6cvspg0jXznRTKDjm/E7AdgFBVeAPVMNcKGsHMA==",
+      "license": "MIT",
+      "dependencies": {
+        "ms": "2.0.0"
+      }
+    },
+    "node_modules/depd": {
+      "version": "2.0.0",
+      "resolved": "https://registry.npmjs.org/depd/-/depd-2.0.0.tgz",
+      "integrity": "sha512-g7nH6P6dyDioJogAAGprGpCtVImJhpPk/roCzdb3fIh61/s/nPsfR6onyMwkCAR/OlC3yBC0lESvUoQEAssIrw==",
+      "license": "MIT",
+      "engines": {
+        "node": ">= 0.8"
+      }
+    },
+    "node_modules/express-session": {
+      "version": "1.18.1",
+      "resolved": "https://registry.npmjs.org/express-session/-/express-session-1.18.1.tgz",
+      "integrity": "sha512-a5mtTqEaZvBCL9A9aqkrtfz+3SMDhOVUnjafjo+s7A9Txkq+SVX2DLvSp1Zrv4uCXa3lMSK3viWnh9Gg07PBUA==",
+      "license": "MIT",
+      "dependencies": {
+        "cookie": "0.7.2",
+        "cookie-signature": "1.0.7",
+        "debug": "2.6.9",
+        "depd": "~2.0.0",
+        "on-headers": "~1.0.2",
+        "parseurl": "~1.3.3",
+        "safe-buffer": "5.2.1",
+        "uid-safe": "~2.1.5"
+      },
+      "engines": {
+        "node": ">= 0.8.0"
+      }
+    },
+    "node_modules/express-session/node_modules/cookie-signature": {
+      "version": "1.0.7",
+      "resolved": "https://registry.npmjs.org/cookie-signature/-/cookie-signature-1.0.7.tgz",
+      "integrity": "sha512-NXdYc3dLr47pBkpUCHtKSwIOQXLVn8dZEuywboCOJY/osA0wFSLlSawr3KN8qXJEyX66FcONTH8EIlVuK0yyFA==",
+      "license": "MIT"
+    },
+    "node_modules/ms": {
+      "version": "2.0.0",
+      "resolved": "https://registry.npmjs.org/ms/-/ms-2.0.0.tgz",
+      "integrity": "sha512-Tpp60P6IUJDTuOq/5Z8cdskzJujfwqfOTkrwIwj7IRISpnkJnT6SyJ4PCPnGMoFjC9ddhal5KVIYtAt97ix05A==",
+      "license": "MIT"
+    },
+    "node_modules/on-headers": {
+      "version": "1.0.2",
+      "resolved": "https://registry.npmjs.org/on-headers/-/on-headers-1.0.2.tgz",
+      "integrity": "sha512-pZAE+FJLoyITytdqK0U5s+FIpjN0JP3OzFi/u8Rx+EV5/W+JTWGXG8xFzevE7AjBfDqHv/8vL8qQsIhHnqRkrA==",
+      "license": "MIT",
+      "engines": {
+        "node": ">= 0.8"
+      }
+    },
+    "node_modules/parseurl": {
+      "version": "1.3.3",
+      "resolved": "https://registry.npmjs.org/parseurl/-/parseurl-1.3.3.tgz",
+      "integrity": "sha512-CiyeOxFT/JZyN5m0z9PfXw4SCBJ6Sygz1Dpl0wqjlhDEGGBP1GnsUVEL0p63hoG1fcj3fHynXi9NYO4nWOL+qQ==",
+      "license": "MIT",
+      "engines": {
+        "node": ">= 0.8"
+      }
+    },
+    "node_modules/random-bytes": {
+      "version": "1.0.0",
+      "resolved": "https://registry.npmjs.org/random-bytes/-/random-bytes-1.0.0.tgz",
+      "integrity": "sha512-iv7LhNVO047HzYR3InF6pUcUsPQiHTM1Qal51DcGSuZFBil1aBBWG5eHPNek7bvILMaYJ/8RU1e8w1AMdHmLQQ==",
+      "license": "MIT",
+      "engines": {
+        "node": ">= 0.8"
+      }
+    },
+    "node_modules/safe-buffer": {
+      "version": "5.2.1",
+      "resolved": "https://registry.npmjs.org/safe-buffer/-/safe-buffer-5.2.1.tgz",
+      "integrity": "sha512-rp3So07KcdmmKbGvgaNxQSJr7bGVSVk5S9Eq1F+ppbRo70+YeaDxkw5Dd8NPN+GD6bjnYm2VuPuCXmpuYvmCXQ==",
+      "funding": [
+        {
+          "type": "github",
+          "url": "https://github.com/sponsors/feross"
+        },
+        {
+          "type": "patreon",
+          "url": "https://www.patreon.com/feross"
+        },
+        {
+          "type": "consulting",
+          "url": "https://feross.org/support"
+        }
+      ],
+      "license": "MIT"
+    },
+    "node_modules/uid-safe": {
+      "version": "2.1.5",
+      "resolved": "https://registry.npmjs.org/uid-safe/-/uid-safe-2.1.5.tgz",
+      "integrity": "sha512-KPHm4VL5dDXKz01UuEd88Df+KzynaohSL9fBh096KWAxSKZQDI2uBrVqtvRM4rwrIrRRKsdLNML/lnaaVSRioA==",
+      "license": "MIT",
+      "dependencies": {
+        "random-bytes": "~1.0.0"
+      },
+      "engines": {
+        "node": ">= 0.8"
+      }
+    }
+  }
 }
 
 === ./README.md ===
@@ -2133,3 +2694,12 @@ The application implements consistent error handling:
 Imporant
 - Add post id to the post to make it easier to find the post when liking / disliking
 - need functioni to communicate with server to add likes
+
+=== ./package.json ===
+
+{
+  "dependencies": {
+    "cookie-parser": "^1.4.7",
+    "express-session": "^1.18.1"
+  }
+}

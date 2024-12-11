@@ -60,15 +60,20 @@ const getHandlers = {
         try {
             let pageName = req.url === '/' ? 'index' : req.url.match(/^\/([^/]+)/)[1];
             let pageContent;
-
-            if (pageName === 'index') {
+    
+            // Special handling for the account page
+            if (pageName === 'account') {
+                pageContent = await fs.readFile(path.join(__dirname, '../../views/pages/account.html'), 'utf8');
+                const template = templateService.getTemplateHTML();
+                pageContent = template.replace('{{content}}', pageContent);
+            } else if (pageName === 'index') {
                 pageContent = await fs.readFile(path.join(__dirname, '../../views/pages/index.html'), 'utf8');
             } else {
                 const template = templateService.getTemplateHTML();
                 const content = await templateService.readPageContent(pageName);
                 pageContent = template.replace('{{content}}', content);
             }
-
+    
             res.writeHead(200, { 'Content-Type': 'text/html' });
             res.end(pageContent);
         } catch (error) {

@@ -24,7 +24,6 @@ const routes = {
             pattern: /^\/forum\/([^/]+)$/,
             handler: 'handleForum'
         },
-        // Add login page route
         login: {
             pattern: /^\/login$/,
             handler: 'handlePage'
@@ -33,12 +32,10 @@ const routes = {
         default: 'handlePage'
     },
     POST: {
-        // Add login endpoint
         login: {
             pattern: /^\/api\/users\/login$/,
             handler: 'handleLogin'
         },
-        // Add logout endpoint
         logout: {
             pattern: /^\/api\/users\/logout$/,
             handler: 'handleLogout'
@@ -51,20 +48,37 @@ const routes = {
             pattern: /^\/api\//,
             handler: 'handleApi'
         },
+        createForum: {
+            pattern: /^\/api\/forums\/create$/,
+            handler: 'handleApi'
+        },
         default: null
+    },
+    PUT: {
+        postReaction: {
+            pattern: /^\/api\/posts\/react$/,
+            handler: 'handlePostReaction'
+        }
+    },
+    DELETE: {
+        deletePost: {
+            pattern: /^\/api\/posts\/\d+$/,
+            handler: 'handleDeletePost'
+        }
     }
 };
 
 // Add session checking middleware
 function checkSession(req) {
-    // For pages that require authentication
-    const protectedPaths = ['/forums/posts/create', '/account'];
+    // Public paths that don't require authentication
+    const publicPaths = ['/login', '/account', '/', '/css/', '/js/', '/api/users/login'];
     
-    // If the path is protected and there's no session
-    if (protectedPaths.some(path => req.url.includes(path)) && !req.session?.userId) {
-        return false;
+    if (publicPaths.some(path => req.url.startsWith(path))) {
+        return true;
     }
-    return true;
+
+    // Check if user is logged in
+    return req.session && req.session.user;
 }
 
 async function handleRequest(req, res) {
@@ -73,9 +87,15 @@ async function handleRequest(req, res) {
     try {
         // Check session for protected routes
         if (!checkSession(req)) {
-            // If no valid session, redirect to login
-            res.writeHead(302, { Location: '/login' });
-            res.end();
+            if (req.url.startsWith('/api/')) {
+                // For API requests, return JSON error
+                res.writeHead(401, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Unauthorized' }));
+            } else {
+                // For page requests, redirect to login
+                res.writeHead(302, { Location: '/login' });
+                res.end();
+            }
             return;
         }
 

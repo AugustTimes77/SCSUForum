@@ -45,13 +45,14 @@ const postHandlers = {
             res.end(JSON.stringify({ error: 'Error creating user' }));
         }
     },
-    // Main API router
+    
     async handleApi(req, res) {
         try {
             // Define API routes
             const routes = {
                 '/api/users/create': this.handleCreateUser,
-                '/api/forums/posts/create': this.handleCreateForumPost
+                '/api/forums/posts/create': this.handleCreateForumPost,
+                '/api/forums/create': this.handleCreateForum  // Add this line
             };
 
             const handler = routes[req.url];
@@ -104,43 +105,114 @@ const postHandlers = {
             }));
         }
     },
-
     async handleLogin(req, res) {
         try {
             const userData = await parseBody(req);
+            console.log('Login attempt for user:', userData.username); // Debug log
             
-            // For a student project, we'll do simple password checking
-            const [user] = await db.pool.query(
-                'SELECT user_id, username, email, role FROM users WHERE username = ? AND password_hash = ?',
-                [userData.username, userData.password]
-            );
-
-            if (!user || user.length === 0) {
-                res.writeHead(401, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ error: 'Invalid username or password' }));
+            // Validate input
+            if (!userData.username || !userData.password) {
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Username and password are required' }));
                 return;
             }
 
-            // Set session data
-            req.session.userId = user[0].user_id;
-            req.session.username = user[0].username;
+            try {
+                // Use the pool directly since we're debugging
+                const [rows] = await pool.query(
+                    'SELECT user_id, username, email, role FROM users WHERE username = ? AND password_hash = ?',
+                    [userData.username, userData.password]
+                );
+                
+                console.log('Query result:', rows); // Debug log
+
+                if (!rows || rows.length === 0) {
+                    res.writeHead(401, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ error: 'Invalid username or password' }));
+                    return;
+                }
+
+                const user = rows[0];
+
+                // Set session data
+                req.session = req.session || {};
+                req.session.user = {
+                    id: user.user_id,
+                    username: user.username,
+                    email: user.email,
+                    role: user.role
+                };
+
+                res.writeHead(200, { 
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                });
+                res.end(JSON.stringify({ 
+                    success: true,
+                    user: {
+                        id: user.user_id,
+                        username: user.username,
+                        email: user.email,
+                        role: user.role
+                    }
+                }));
+
+            } catch (dbError) {
+                console.error('Database error:', dbError);
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Database error during login' }));
+            }
+
+        } catch (error) {
+            console.error('Login error:', error);
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Login failed', details: error.message }));
+        }
+    },
+
+    async handleLogout(req, res) {
+        try {
+            req.session.destroy(err => {
+                if (err) {
+                    res.writeHead(500, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ error: 'Logout failed' }));
+                    return;
+                }
+    
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: true }));
+            });
+        } catch (error) {
+            console.error('Logout error:', error);
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Logout failed' }));
+        }
+    },
+
+    async handleCreateForum(req, res) {
+        try {
+            const forumData = await parseBody(req);
             
-            res.writeHead(200, { 
+            if (!forumData.name || !forumData.description) {
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Name and description are required' }));
+                return;
+            }
+    
+            const newForum = await Forum.create(forumData);
+            
+            res.writeHead(201, { 
                 'Content-Type': 'application/json',
                 'Access-Control-Allow-Origin': '*'
             });
-            res.end(JSON.stringify({ 
+            res.end(JSON.stringify({
                 success: true,
-                user: {
-                    id: user[0].user_id,
-                    username: user[0].username,
-                    email: user[0].email,
-                    role: user[0].role
-                }
+                forum: newForum
             }));
         } catch (error) {
+            console.error('Error creating forum:', error);
             res.writeHead(500, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'Login failed' }));
+            res.end(JSON.stringify({ error: 'Failed to create forum' }));
         }
     }
 
